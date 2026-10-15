@@ -34,8 +34,10 @@ backend/
   requirements.txt
 frontend/
   src/
+    main.tsx         entry; imports Leaflet CSS
+    api.ts           fetch wrapper + types mirroring backend/app/schemas.py
+    index.css        styles (CSS variables on :root)
     pages/MapPage.tsx, ReviewPage.tsx
-    api.ts
 data/                Muse exports (gitignored)
 ```
 
@@ -57,7 +59,12 @@ npm run dev                                # Vite on :5173, proxies /api to :800
 
 # tests (from backend/)
 pytest
+
+# typecheck (from frontend/)
+npm run typecheck
 ```
+
+`.claude/launch.json` defines `api` (uvicorn on :8000) and `web` (Vite on :5173) for the Claude browser preview. The Vite dev server proxies `/api` to :8000, so the frontend uses relative URLs.
 
 To start over, delete `backend/food_map.db` and re-run the import.
 
@@ -135,7 +142,9 @@ A place left with no reels is deleted, unless it's marked visited.
 
 ## Frontend (phase 1)
 
-- Map page: one pin per place; approximate places use a distinct marker (dashed/hollow) and the popup says the location is approximate. Popup: name, address, "Open in Google Maps" link, reel link(s), "been here" toggle. Overlapping pins at identical coords are spread so each is clickable.
+- Map page: one circle marker per place. Orange = to try, green = been here; approximate places are larger, dashed and translucent, and the popup says the location is approximate. Popup: name, address, "Open in Google Maps" link, "been here" checkbox (with date), reel links (@poster + dish snippet). Header shows place/visited counts and a legend.
+  - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
+  - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).
 - Review page: needs_review reels with Muse's venue/note, the reel link, flag badges and review_reason; filter by flag; attach to an existing place, enter a place (name, address, click the map for the pin), add extra spots to multi-spot reels then resolve, or reject.
 
 ## Out of scope (for now)

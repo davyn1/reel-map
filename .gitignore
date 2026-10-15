@@ -1,0 +1,29 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# Muse exports (personal data)
+data/*.json
+
+# SQLite
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

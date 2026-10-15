@@ -132,7 +132,6 @@ export default function MapPage() {
   return (
     <div className="map-page">
       <header className="map-header">
-        <span className="title">Food Map</span>
         {places && (
           <span className="counts">
             {places.length} places · {visitedCount} visited

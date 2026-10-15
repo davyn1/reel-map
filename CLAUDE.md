@@ -35,6 +35,7 @@ backend/
 frontend/
   src/
     main.tsx         entry; imports Leaflet CSS
+    App.tsx          top bar + hash routing (#/ map, #/review) + review-count badge
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     index.css        styles (CSS variables on :root)
     pages/MapPage.tsx, ReviewPage.tsx
@@ -145,7 +146,14 @@ A place left with no reels is deleted, unless it's marked visited.
 - Map page: one circle marker per place. Orange = to try, green = been here; approximate places are larger, dashed and translucent, and the popup says the location is approximate. Popup: name, address, "Open in Google Maps" link, "been here" checkbox (with date), reel links (@poster + dish snippet). Header shows place/visited counts and a legend.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).
-- Review page: needs_review reels with Muse's venue/note, the reel link, flag badges and review_reason; filter by flag; attach to an existing place, enter a place (name, address, click the map for the pin), add extra spots to multi-spot reels then resolve, or reject.
+- Review page (`#/review`): one card per needs_review reel with venue, @poster reel link, Muse confidence/address/note, caption, flag badges (hover for description) and review_reason; filter by flag (with counts). "Fix" opens a panel:
+  - New place: name, optional address, click the mini map to drop the pin (or type lat/lng), approximate checkbox
+  - Existing place: search places on the map by name/address, "Use this"
+  - Reels that already have a place (multi-spot) choose "Add another spot from this reel" (default) or "Replace", then "Done: keep …" resolves them
+  - "Reject reel" (asks to confirm)
+  - Links to the reel and a Google Maps search for Muse's venue + address to help find the spot
+
+Testing note: the Claude browser pane does not run `requestAnimationFrame` while hidden, so Leaflet draws nothing (paths are `M0 0`) and map clicks convert to wrong coordinates there. Check map visuals with the pane visible or in a normal browser.
 
 ## Out of scope (for now)
 

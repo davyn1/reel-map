@@ -58,7 +58,7 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
   return (
     <main className="review-page">
       <div className="review-toolbar">
-        <h2>Needs review{queue ? ` (${queue.length})` : ""}</h2>
+        <h2>{queue ? `${queue.length} reel${queue.length === 1 ? "" : "s"} to sort out` : "Loading…"}</h2>
         <label>
           Flag{" "}
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -333,11 +333,11 @@ function PinPicker({ pin, onPick }: { pin: [number, number] | null; onPick: (lat
   return (
     <MapContainer center={pin ?? BAY_AREA_CENTER} zoom={pin ? 15 : 9} className="pin-picker">
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       />
       <ClickToPick onPick={onPick} />
-      {pin && <CircleMarker center={pin} radius={8} pathOptions={{ color: "#fff", weight: 2, fillColor: "#0969da", fillOpacity: 0.95 }} />}
+      {pin && <CircleMarker center={pin} radius={8} pathOptions={{ color: "#fff", weight: 2, fillColor: "#2ec4a6", fillOpacity: 0.95 }} />}
     </MapContainer>
   );
 }

@@ -147,3 +147,22 @@ def test_replace_moves_reel_and_cleans_up_old_place(client):
     rid = places["Its On The Flo"]["reels"][0]["id"]
     client.post(f"/api/reels/{rid}/place", json={"place_id": places["Test Cafe"]["id"]})
     assert "Its On The Flo" not in places_by_name(client)
+
+
+def test_places_have_city_and_import_order(client):
+    places = client.get("/api/places").json()
+    assert [p["name"] for p in places] == ["Test Cafe", "Its On The Flo", "Deli Board"]
+    assert places[0]["city"] == "Oakland"
+
+
+def test_place_city_falls_back_to_address():
+    from app.models import Place
+    from app.routers.places import place_city
+    assert place_city(Place(name="X", lat=0, lng=0, address="1 Market St, San Francisco, CA 94105")) == "San Francisco"
+    assert place_city(Place(name="X", lat=0, lng=0, address=None)) is None
+
+
+def test_stats(client):
+    assert client.get("/api/stats").json() == {"reels_saved": 5, "on_map": 3, "cities": 1, "needs_review": 2}
+    client.post(f"/api/reels/{review_by_url(client)['u4']['id']}/reject")
+    assert client.get("/api/stats").json() == {"reels_saved": 4, "on_map": 3, "cities": 1, "needs_review": 1}

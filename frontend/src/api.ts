@@ -14,11 +14,19 @@ export interface Place {
   lat: number;
   lng: number;
   address: string | null;
+  city: string | null;
   is_approximate: boolean;
   google_maps_url: string;
   visited: boolean;
   visited_date: string | null;
   reels: ReelBrief[];
+}
+
+export interface Stats {
+  reels_saved: number;
+  on_map: number;
+  cities: number;
+  needs_review: number;
 }
 
 export interface PlaceBrief {
@@ -81,6 +89,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ visited }),
     }),
+  stats: () => request<Stats>("/api/stats"),
   flags: () => request<Record<string, string>>("/api/flags"),
   reviewQueue: () => request<ReviewReel[]>("/api/reels/review"),
   attachPlace: (reelId: number, body: AttachBody) =>

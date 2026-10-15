@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_session
 from app.importer.flags import FLAG_DESCRIPTIONS, in_bay_area
 from app.models import Place, Reel
-from app.schemas import AttachPlaceIn, PlaceBrief, ReviewReelOut
+from app.routers.places import place_city
+from app.schemas import AttachPlaceIn, PlaceBrief, ReviewReelOut, StatsOut
 
 router = APIRouter(prefix="/api", tags=["reels"])
 
@@ -53,6 +54,17 @@ def drop_if_orphaned(session: Session, place: Place | None) -> None:
     for visit in place.visits:
         session.delete(visit)
     session.delete(place)
+
+
+@router.get("/stats", response_model=StatsOut)
+def stats(session: Session = Depends(get_session)):
+    places = session.scalars(select(Place).options(selectinload(Place.reels), selectinload(Place.extra_reels))).all()
+    return StatsOut(
+        reels_saved=session.scalar(select(func.count(Reel.id)).where(Reel.status != "rejected")),
+        on_map=len(places),
+        cities=len({c for p in places if (c := place_city(p))}),
+        needs_review=session.scalar(select(func.count(Reel.id)).where(Reel.status == "needs_review")),
+    )
 
 
 @router.get("/flags")

@@ -18,11 +18,19 @@ class PlaceOut(BaseModel):
     lat: float
     lng: float
     address: str | None
+    city: str | None
     is_approximate: bool
     google_maps_url: str
     visited: bool
     visited_date: date | None
     reels: list[ReelBrief]
+
+
+class StatsOut(BaseModel):
+    reels_saved: int  # every reel that isn't rejected
+    on_map: int  # places
+    cities: int
+    needs_review: int
 
 
 class PlaceBrief(BaseModel):

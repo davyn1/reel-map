@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "./api";
+import { api, type Stats } from "./api";
 import MapPage from "./pages/MapPage";
 import ReviewPage from "./pages/ReviewPage";
 
@@ -11,31 +11,40 @@ function currentRoute(): Route {
 
 export default function App() {
   const [route, setRoute] = useState<Route>(currentRoute);
-  const [reviewCount, setReviewCount] = useState<number | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    const onHash = () => setRoute(currentRoute());
+    const onHash = () => {
+      setRoute(currentRoute());
+      window.scrollTo(0, 0);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const refreshCount = useCallback(() => {
-    api.reviewQueue().then((q) => setReviewCount(q.length)).catch(() => setReviewCount(null));
+  const refreshStats = useCallback(() => {
+    api.stats().then(setStats).catch(() => setStats(null));
   }, []);
-  useEffect(refreshCount, [refreshCount]);
+  useEffect(refreshStats, [refreshStats]);
 
   return (
     <div className="app">
-      <nav className="topbar">
-        <span className="title">Food Map</span>
-        <a href="#/" className={route === "map" ? "active" : ""}>
-          Map
-        </a>
-        <a href="#/review" className={route === "review" ? "active" : ""}>
-          Review{reviewCount ? <span className="badge">{reviewCount}</span> : null}
-        </a>
-      </nav>
-      {route === "map" ? <MapPage /> : <ReviewPage onQueueChange={refreshCount} />}
+      <header className="topbar">
+        {route === "review" ? (
+          <a className="icon-btn" href="#/" aria-label="Back to map">
+            ‹
+          </a>
+        ) : (
+          <span className="icon-btn placeholder" />
+        )}
+        <h1>{route === "review" ? "Needs review" : "Bay Area Yums Map"}</h1>
+        <span className="icon-btn placeholder" />
+      </header>
+      {route === "map" ? (
+        <MapPage stats={stats} onChanged={refreshStats} />
+      ) : (
+        <ReviewPage onQueueChange={refreshStats} />
+      )}
     </div>
   );
 }

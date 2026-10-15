@@ -9,7 +9,7 @@ Pins use Muse's own coordinates. There is no Google Places (or any external API)
 ## Stack
 
 - Backend: Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite (`backend/food_map.db`)
-- Frontend: React (Vite) + Leaflet (react-leaflet) with OpenStreetMap tiles
+- Frontend: React (Vite) + Leaflet (react-leaflet). Main map basemap: OpenFreeMap vector tiles rendered by MapLibre GL inside Leaflet (`@maplibre/maplibre-gl-leaflet`), no API key. Review page pin picker: CARTO dark raster tiles (street detail helps place pins).
 - `.env`, `data/*.json` and the SQLite file are gitignored
 
 ## Folder layout
@@ -35,9 +35,11 @@ backend/
 frontend/
   src/
     main.tsx         entry; imports Leaflet CSS
-    App.tsx          top bar + hash routing (#/ map, #/review) + review-count badge
+    App.tsx          title bar (back button on review) + hash routing (#/ map, #/review) + stats
+    mapUtils.ts      numbered teardrop pin icons, overlap spreading, caption cleanup
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     index.css        styles (CSS variables on :root)
+    basemap.tsx      stripped-down vector basemap (see Frontend)
     pages/MapPage.tsx, ReviewPage.tsx
 data/                Muse exports (gitignored)
 ```
@@ -128,7 +130,8 @@ Where to see flags:
 
 Interactive docs at http://localhost:8000/docs while the server runs.
 
-- `GET /api/places` — every place with `visited`, `visited_date`, `google_maps_url` and its non-rejected reels (main + extra)
+- `GET /api/places` — every place (in import order) with `city` (most common reel city, else parsed from address), `visited`, `visited_date`, `google_maps_url` and its non-rejected reels (main + extra)
+- `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`
 - `POST /api/places/{id}/visit` `{"visited": bool}` — set "been here". Takes the desired state rather than flipping, so a double click can't undo itself. Sets `visited_date` to today when turned on, clears it when turned off.
 - `GET /api/flags` — flag code → description, for badges
 - `GET /api/reels/review?flag=` — reels with status `needs_review`, optionally filtered by flag (422 on unknown flag)
@@ -143,7 +146,14 @@ A place left with no reels is deleted, unless it's marked visited.
 
 ## Frontend (phase 1)
 
-- Map page: one circle marker per place. Orange = to try, green = been here; approximate places are larger, dashed and translucent, and the popup says the location is approximate. Popup: name, address, "Open in Google Maps" link, "been here" checkbox (with date), reel links (@poster + dish snippet). Header shows place/visited counts and a legend.
+- Look: dark theme modelled on a Muse-drafted mockup ("Bay Area Yums Map"). Colors are CSS variables on `:root` in `index.css`: coral `--todo` = to try, teal `--visited` = been here, dashed outline = approximate.
+- Basemap (`basemap.tsx`): fetches OpenFreeMap's Positron style, recolors it with the dark `PALETTE`, and keeps only background, water, freeways (motorway incl. bridges/tunnels), trunk highways, US/interstate route shields, water names, and city/town labels. Everything else (buildings, minor roads, parks, rail, airports, boundaries, POIs) is dropped. To show more or less, edit the `KEEP` set; layer ids are from the Positron style. Falls back to OSM raster tiles if the style can't load.
+- Map page, top to bottom:
+  - stat chips from `GET /api/stats` (reels saved, on the map, cities, been there, waiting for review → links to `#/review`)
+  - search (name, city, address, caption, poster; every word must match), City and Pins filters (to try / been here / exact / approximate); changing a filter refits the map
+  - legend, then the map card: numbered teardrop pins (`L.divIcon`). Numbers follow import order (`GET /api/places` sorts by id) and don't change while filtering.
+  - popup: name, address, approximate note, "Open in Google Maps", "been here" checkbox (with date), reel links
+  - list of matching places: number, name, cleaned caption (hashtags/📍 stripped, ALL CAPS → sentence case), city, exact/approximate, "saved by @poster +N", and a "Been here?" toggle. Clicking a card flies to its pin and opens the popup.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).
 - Review page (`#/review`): one card per needs_review reel with venue, @poster reel link, Muse confidence/address/note, caption, flag badges (hover for description) and review_reason; filter by flag (with counts). "Fix" opens a panel:
@@ -153,8 +163,8 @@ A place left with no reels is deleted, unless it's marked visited.
   - "Reject reel" (asks to confirm)
   - Links to the reel and a Google Maps search for Muse's venue + address to help find the spot
 
-Testing note: the Claude browser pane does not run `requestAnimationFrame` while hidden, so Leaflet draws nothing (paths are `M0 0`) and map clicks convert to wrong coordinates there. Check map visuals with the pane visible or in a normal browser.
+Testing note: the Claude browser pane does not run `requestAnimationFrame` while hidden, so Leaflet/MapLibre draw nothing (paths are `M0 0`) and map clicks convert to wrong coordinates there. For screenshots, drive headless Chrome over the DevTools protocol (real waits + `Emulation.setDeviceMetricsOverride` for phone size). Don't use `--virtual-time-budget`: it stalls MapLibre's workers and the basemap comes out blank. Plain `--window-size` can't go below ~500px wide on Windows.
 
 ## Out of scope (for now)
 
-Auth, multiple users, deployment, filters, Google Places verification.
+Auth, multiple users, deployment, Google Places verification.

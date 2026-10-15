@@ -1,3 +1,5 @@
+import re
+from collections import Counter
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,6 +16,18 @@ router = APIRouter(prefix="/api/places", tags=["places"])
 USER = "me"  # single user until auth exists
 
 
+_CITY_BEFORE_STATE = re.compile(r"([^,]+),\s*CA\b")
+
+
+def place_city(place: Place) -> str | None:
+    """Most common city among the place's reels, else the city in its address."""
+    cities = Counter(r.city_raw for r in [*place.reels, *place.extra_reels] if r.city_raw)
+    if cities:
+        return cities.most_common(1)[0][0]
+    match = _CITY_BEFORE_STATE.search(place.address or "")
+    return match.group(1).strip() if match else None
+
+
 def place_out(place: Place) -> PlaceOut:
     visit = next((v for v in place.visits if v.user == USER), None)
     reels = sorted({r.id: r for r in [*place.reels, *place.extra_reels] if r.status != "rejected"}.values(), key=lambda r: r.id)
@@ -23,6 +37,7 @@ def place_out(place: Place) -> PlaceOut:
         lat=place.lat,
         lng=place.lng,
         address=place.address,
+        city=place_city(place),
         is_approximate=place.is_approximate,
         google_maps_url=google_maps_url(place.name, place.address, place.lat, place.lng),
         visited=bool(visit and visit.visited),
@@ -36,7 +51,7 @@ def list_places(session: Session = Depends(get_session)):
     places = session.scalars(
         select(Place)
         .options(selectinload(Place.reels), selectinload(Place.extra_reels), selectinload(Place.visits))
-        .order_by(Place.name)
+        .order_by(Place.id)  # import order; the map numbers pins in this order
     )
     return [place_out(p) for p in places]
 

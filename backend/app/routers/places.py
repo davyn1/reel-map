@@ -10,6 +10,7 @@ from app.db import get_session
 from app.maps_link import google_maps_url
 from app.models import Place, Visit
 from app.schemas import PlaceOut, ReelBrief, VisitIn
+from app.tags import place_tags
 
 router = APIRouter(prefix="/api/places", tags=["places"])
 
@@ -38,10 +39,14 @@ def place_out(place: Place) -> PlaceOut:
         lng=place.lng,
         address=place.address,
         city=place_city(place),
+        tags=place_tags(place),
         is_approximate=place.is_approximate,
         google_maps_url=google_maps_url(place.name, place.address, place.lat, place.lng),
         visited=bool(visit and visit.visited),
         visited_date=visit.visited_date if visit else None,
+        rating=visit.rating if visit else None,
+        notes=visit.notes if visit else None,
+        favorite=bool(visit and visit.favorite),
         reels=[ReelBrief(id=r.id, post_url=r.post_url, posted_by=r.posted_by, dish=r.dish, status=r.status) for r in reels],
     )
 
@@ -57,8 +62,13 @@ def list_places(session: Session = Depends(get_session)):
 
 
 @router.post("/{place_id}/visit", response_model=PlaceOut)
-def set_visited(place_id: int, body: VisitIn, session: Session = Depends(get_session)):
-    """Set "been here". Takes the desired state rather than flipping, so a double click can't undo itself."""
+def update_visit(place_id: int, body: VisitIn, session: Session = Depends(get_session)):
+    """Update the visit log. Only fields present in the body change; send null to clear rating/notes/date.
+
+    `visited` takes the desired state rather than flipping, so a double click can't undo itself.
+    Turning it on stamps today's date unless one is given; turning it off clears date and rating
+    but keeps notes and favorite.
+    """
     place = session.get(Place, place_id)
     if place is None:
         raise HTTPException(404, "place not found")
@@ -66,10 +76,21 @@ def set_visited(place_id: int, body: VisitIn, session: Session = Depends(get_ses
     if visit is None:
         visit = Visit(place=place, user=USER)
         session.add(visit)
-    if body.visited and not visit.visited:
-        visit.visited_date = date.today()
-    elif not body.visited:
-        visit.visited_date = None
-    visit.visited = body.visited
+    sent = body.model_fields_set
+    if "visited" in sent and body.visited is not None:
+        if body.visited and not visit.visited:
+            visit.visited_date = date.today()
+        elif not body.visited:
+            visit.visited_date = None
+            visit.rating = None
+        visit.visited = body.visited
+    if "visited_date" in sent:
+        visit.visited_date = body.visited_date
+    if "rating" in sent:
+        visit.rating = body.rating
+    if "notes" in sent:
+        visit.notes = (body.notes or "").strip() or None
+    if "favorite" in sent and body.favorite is not None:
+        visit.favorite = body.favorite
     session.commit()
     return place_out(place)

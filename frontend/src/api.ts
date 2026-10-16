@@ -17,8 +17,12 @@ export interface Place {
   city: string | null;
   is_approximate: boolean;
   google_maps_url: string;
+  tags: string[];
   visited: boolean;
-  visited_date: string | null;
+  visited_date: string | null; // YYYY-MM-DD
+  rating: number | null; // 1-5
+  notes: string | null;
+  favorite: boolean;
   reels: ReelBrief[];
 }
 
@@ -27,6 +31,17 @@ export interface Stats {
   on_map: number;
   cities: number;
   needs_review: number;
+  visited: number;
+  favorites: number;
+}
+
+/** Partial visit-log update: only the fields given change; null clears rating/notes/date. */
+export interface VisitUpdate {
+  visited?: boolean;
+  visited_date?: string | null;
+  rating?: number | null;
+  notes?: string | null;
+  favorite?: boolean;
 }
 
 export interface PlaceBrief {
@@ -84,10 +99,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   places: () => request<Place[]>("/api/places"),
-  setVisited: (placeId: number, visited: boolean) =>
+  updateVisit: (placeId: number, update: VisitUpdate) =>
     request<Place>(`/api/places/${placeId}/visit`, {
       method: "POST",
-      body: JSON.stringify({ visited }),
+      body: JSON.stringify(update),
     }),
   stats: () => request<Stats>("/api/stats"),
   flags: () => request<Record<string, string>>("/api/flags"),

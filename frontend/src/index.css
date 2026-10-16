@@ -9,6 +9,7 @@
   --visited: #2ec4a6;   /* teal: been here */
   --accent: #2ec4a6;
   --warn: #e3b341;
+  --fav: #ffd24d;       /* favorite star */
   --danger: #ff7b72;
   --radius: 18px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -52,7 +53,15 @@ select { appearance: none; padding-right: 34px; background-image: linear-gradien
   color: var(--muted); background: transparent; text-decoration: none;
 }
 .chip b { color: var(--text); font-weight: 600; }
-a.chip:hover { border-color: var(--muted); }
+button.chip { font-size: 0.95rem; cursor: pointer; }
+a.chip:hover, button.chip:hover { border-color: var(--muted); }
+
+.tag-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; scrollbar-width: thin; }
+.tag-chip { flex: none; padding: 5px 12px; font-size: 0.85rem; background: transparent; color: var(--text); }
+.tag-chip span { color: var(--muted); margin-left: 4px; }
+.tag-chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.tag-chip.on span { color: var(--surface-2); }
+.legend-star { color: var(--fav); font-size: 1rem; }
 
 .search { position: relative; margin-bottom: 12px; }
 .search input { width: 100%; padding-left: 42px; }
@@ -95,22 +104,51 @@ a.chip:hover { border-color: var(--muted); }
 .pin.approx.visited { border-color: var(--visited); }
 .pin.approx span { color: var(--text); }
 .pin.selected { box-shadow: 0 0 0 3px #fff, 0 2px 8px rgba(0, 0, 0, 0.6); }
+.pin-star {
+  position: absolute; top: -8px; right: -9px; font-size: 15px; line-height: 1;
+  color: var(--fav); text-shadow: 0 0 3px #000, 0 0 2px #000;
+}
+
+/* cluster bubbles (react-leaflet-cluster) */
+.cluster-icon { background: none; border: none; }
+.cluster {
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--todo); color: #1b1b1b; font-weight: 700; font-size: 0.9rem;
+  border: 3px solid rgba(22, 22, 22, 0.55); box-shadow: 0 0 0 4px rgba(240, 105, 77, 0.3), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.cluster.visited { background: var(--visited); box-shadow: 0 0 0 4px rgba(46, 196, 166, 0.3), 0 2px 6px rgba(0, 0, 0, 0.5); }
 
 /* dark popups */
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--text); }
-.leaflet-container a { color: var(--accent); }
+.leaflet-popup-content a { color: var(--accent); }
+.leaflet-container .leaflet-control-zoom a { color: #222; }
+.leaflet-container .leaflet-control-attribution a { color: var(--muted); }
 .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
 .popup { min-width: 220px; max-width: 280px; font-size: 0.86rem; line-height: 1.4; }
 .popup h3 { margin: 0 0 4px; font-size: 1rem; }
 .popup-address { color: var(--muted); margin-bottom: 6px; }
 .popup-approx { background: rgba(227, 179, 65, 0.15); color: var(--warn); padding: 4px 8px; border-radius: 8px; margin-bottom: 6px; }
-.popup-visited { display: flex; align-items: center; gap: 6px; margin: 8px 0; font-weight: 500; cursor: pointer; }
+.popup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.popup-head .fav-btn { width: 30px; height: 30px; margin-top: -4px; }
+.popup-tags { color: var(--muted); font-size: 0.8rem; margin-bottom: 6px; }
+.visit-log { display: grid; gap: 6px; margin: 10px 0 8px; }
+.visit-toggle { display: flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
+.visit-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.visit-date { padding: 4px 8px; border-radius: 8px; font-size: 0.8rem; }
+.visit-notes {
+  font: inherit; font-size: 0.85rem; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; resize: vertical; width: 100%;
+}
+.saved { font-size: 0.75rem; color: var(--visited); }
 .popup-reels { border-top: 1px solid var(--border); padding-top: 6px; display: grid; gap: 4px; }
 .popup-reel { color: var(--muted); overflow-wrap: anywhere; }
 
 /* ---------- place list ---------- */
-.list-head { margin: 22px 0 12px; font-size: 1.05rem; }
+.list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 12px; }
+.list-head h2 { margin: 0; font-size: 1.05rem; font-weight: 400; }
 .list-head b { font-weight: 600; }
+.list-head label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
+.list-head select { padding: 6px 30px 6px 12px; font-size: 0.85rem; }
 .place-card {
   display: flex; gap: 14px; align-items: flex-start; width: 100%; text-align: left;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -133,9 +171,21 @@ a.chip:hover { border-color: var(--muted); }
 .place-card .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 0.85rem; color: var(--muted); }
 .place-card .meta .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--todo); display: inline-block; margin-right: -8px; }
 .place-card .meta .dot.visited { background: var(--visited); }
-.been {
-  flex: none; align-self: center; font-size: 0.8rem; white-space: nowrap;
-}
+.card-actions { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; align-self: center; }
+.been { font-size: 0.8rem; white-space: nowrap; }
+.card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.card-tags span { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.visit-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 6px; font-size: 0.85rem; color: var(--visited); }
+.card-notes { margin: 0 0 8px; font-size: 0.88rem; color: var(--text); font-style: italic; overflow-wrap: anywhere; }
+
+/* favorites + stars */
+.fav-btn { padding: 0; width: 34px; height: 34px; border-radius: 50%; font-size: 1.15rem; line-height: 1; color: var(--muted); background: transparent; }
+.fav-btn.on { color: var(--fav); border-color: rgba(255, 210, 77, 0.5); }
+.stars-static { color: var(--fav); letter-spacing: 1px; }
+.stars-static .dim { color: var(--border); }
+.stars-input { display: inline-flex; }
+.stars-input button { border: none; background: none; padding: 0 2px; font-size: 1.3rem; line-height: 1; color: var(--border); }
+.stars-input button.on { color: var(--fav); }
 .been.on { background: var(--visited); border-color: var(--visited); color: #0d2a24; font-weight: 600; }
 .empty { color: var(--muted); }
 

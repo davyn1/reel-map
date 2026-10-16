@@ -21,8 +21,12 @@ class PlaceOut(BaseModel):
     city: str | None
     is_approximate: bool
     google_maps_url: str
+    tags: list[str]
     visited: bool
     visited_date: date | None
+    rating: int | None
+    notes: str | None
+    favorite: bool
     reels: list[ReelBrief]
 
 
@@ -31,6 +35,8 @@ class StatsOut(BaseModel):
     on_map: int  # places
     cities: int
     needs_review: int
+    visited: int
+    favorites: int
 
 
 class PlaceBrief(BaseModel):
@@ -60,7 +66,13 @@ class ReviewReelOut(BaseModel):
 
 
 class VisitIn(BaseModel):
-    visited: bool
+    """Partial update of the place's visit log: send only the fields that change."""
+
+    visited: bool | None = None
+    visited_date: date | None = None
+    rating: int | None = Field(None, ge=1, le=5)
+    notes: str | None = Field(None, max_length=2000)
+    favorite: bool | None = None
 
 
 class NewPlace(BaseModel):

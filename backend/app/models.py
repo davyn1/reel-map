@@ -62,6 +62,7 @@ class Visit(Base):
     place_id: Mapped[int] = mapped_column(ForeignKey("places.id"))
     user: Mapped[str] = mapped_column(String, default="me")
     visited: Mapped[bool] = mapped_column(Boolean, default=False)
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     visited_date: Mapped[date | None] = mapped_column(Date)
     rating: Mapped[int | None] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)

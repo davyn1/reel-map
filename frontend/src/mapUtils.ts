@@ -39,15 +39,16 @@ export function pinClasses(place: Place): string {
 
 const iconCache = new Map<string, L.DivIcon>();
 
-/** Numbered teardrop pin. Cached so re-renders don't rebuild every marker's DOM. */
+/** Numbered teardrop pin, with a star badge for favorites. Cached so re-renders don't rebuild every marker's DOM. */
 export function pinIcon(number: number, place: Place, selected: boolean): L.DivIcon {
   const classes = `pin ${pinClasses(place)}${selected ? " selected" : ""}`;
-  const key = `${number}|${classes}`;
+  const key = `${number}|${classes}|${place.favorite}`;
   let icon = iconCache.get(key);
   if (!icon) {
+    const star = place.favorite ? '<b class="pin-star">★</b>' : "";
     icon = L.divIcon({
       className: "pin-icon",
-      html: `<div class="${classes}"><span>${number}</span></div>`,
+      html: `<div class="${classes}"><span>${number}</span></div>${star}`,
       iconSize: [32, 32],
       iconAnchor: [16, 39], // the tip sits ~7px below the rotated square
       popupAnchor: [0, -36],
@@ -55,6 +56,19 @@ export function pinIcon(number: number, place: Place, selected: boolean): L.DivI
     iconCache.set(key, icon);
   }
   return icon;
+}
+
+/** Cluster bubble: count of pins inside; teal when every place in it is visited. */
+export function clusterIcon(cluster: L.MarkerCluster): L.DivIcon {
+  const markers = cluster.getAllChildMarkers();
+  const allVisited = markers.every((m) => String((m.options.icon as L.DivIcon)?.options.html ?? "").includes("visited"));
+  const count = cluster.getChildCount();
+  const size = count < 10 ? 38 : count < 25 ? 44 : 50;
+  return L.divIcon({
+    className: "cluster-icon",
+    html: `<div class="cluster${allVisited ? " visited" : ""}" style="width:${size}px;height:${size}px">${count}</div>`,
+    iconSize: [size, size],
+  });
 }
 
 /** Caption snippet without hashtags and pin emoji, for the list cards. */

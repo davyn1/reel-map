@@ -19,9 +19,10 @@ backend/
   app/
     main.py          FastAPI app, CORS for the Vite dev server
     config.py        paths, DATABASE_URL
-    db.py            engine/session, create tables
+    db.py            engine/session, create tables, add new columns to existing DBs
     models.py        places, reels, visits
     maps_link.py     "Open in Google Maps" URL builder
+    tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
     routers/         places.py, reels.py (review queue)
     importer/
@@ -36,7 +37,8 @@ frontend/
   src/
     main.tsx         entry; imports Leaflet CSS
     App.tsx          title bar (back button on review) + hash routing (#/ map, #/review) + stats
-    mapUtils.ts      numbered teardrop pin icons, overlap spreading, caption cleanup
+    mapUtils.ts      numbered teardrop pin icons, cluster bubbles, overlap spreading, caption cleanup
+    components/VisitLog.tsx  been-here toggle, star rating, visit date, notes, favorite button
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     index.css        styles (CSS variables on :root)
     basemap.tsx      stripped-down vector basemap (see Frontend)
@@ -76,7 +78,11 @@ To start over, delete `backend/food_map.db` and re-run the import.
 - **places**: id, name, lat, lng, address, is_approximate (bool)
 - **reels**: id, post_url (unique; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file
 - **reel_extra_places**: reel_id, place_id. Extra spots for multi-spot reels; `reels.place_id` stays the reel's main place.
-- **visits**: id, place_id, user, visited (bool), visited_date, rating, notes. One row per (place_id, user). Single-user for now: `user` is `"me"`.
+- **visits**: id, place_id, user, visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Single-user for now: `user` is `"me"`. Notes and favorite don't require a visit.
+
+Schema changes: `create_all` only creates missing tables, so a column added to an existing table must also be listed in `db._ADDED_COLUMNS`; `init_db` adds it with `ALTER TABLE` and keeps the data.
+
+Food tags are computed, not stored (`tags.place_tags`): the first matching keyword regex per tag over the place name, its reels' venue/caption, and Muse's notes. Whole words only; edit `tags.TAGS` to change them, and every place is re-tagged on the next request.
 
 One place has many reels. The Google Maps link is computed (not stored) from name + address, falling back to lat/lng.
 
@@ -130,9 +136,9 @@ Where to see flags:
 
 Interactive docs at http://localhost:8000/docs while the server runs.
 
-- `GET /api/places` — every place (in import order) with `city` (most common reel city, else parsed from address), `visited`, `visited_date`, `google_maps_url` and its non-rejected reels (main + extra)
-- `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`
-- `POST /api/places/{id}/visit` `{"visited": bool}` — set "been here". Takes the desired state rather than flipping, so a double click can't undo itself. Sets `visited_date` to today when turned on, clears it when turned off.
+- `GET /api/places` — every place (in import order) with `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
+- `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`, `visited`, `favorites`
+- `POST /api/places/{id}/visit` — partial update of the visit log: any of `visited`, `visited_date`, `rating` (1–5), `notes`, `favorite`; only fields sent change, `null` clears rating/notes/date. `visited` takes the desired state rather than flipping, so a double click can't undo itself. Turning it on stamps today's date (unless one is sent); turning it off clears date and rating but keeps notes and favorite.
 - `GET /api/flags` — flag code → description, for badges
 - `GET /api/reels/review?flag=` — reels with status `needs_review`, optionally filtered by flag (422 on unknown flag)
 - `POST /api/reels/{id}/place` `{"place_id": n}` or `{"new_place": {name, lat, lng, address?, is_approximate?}}`, plus `mode`:
@@ -142,18 +148,19 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 - `POST /api/reels/{id}/resolve` — keep the reel's place(s) and mark it `matched` (e.g. multi-spot reel with all spots added)
 - `POST /api/reels/{id}/reject` — status `rejected`, unlinks its places
 
-A place left with no reels is deleted, unless it's marked visited.
+A place left with no reels is deleted, unless you've logged it (visited, favorite or notes).
 
 ## Frontend (phase 1)
 
 - Look: dark theme modelled on a Muse-drafted mockup ("Bay Area Yums Map"). Colors are CSS variables on `:root` in `index.css`: coral `--todo` = to try, teal `--visited` = been here, dashed outline = approximate.
 - Basemap (`basemap.tsx`): fetches OpenFreeMap's Positron style, recolors it with the dark `PALETTE`, and keeps only background, water, freeways (motorway incl. bridges/tunnels), trunk highways, US/interstate route shields, water names, and city/town labels. Everything else (buildings, minor roads, parks, rail, airports, boundaries, POIs) is dropped. To show more or less, edit the `KEEP` set; layer ids are from the Positron style. Falls back to OSM raster tiles if the style can't load.
 - Map page, top to bottom:
-  - stat chips from `GET /api/stats` (reels saved, on the map, cities, been there, waiting for review → links to `#/review`)
-  - search (name, city, address, caption, poster; every word must match), City and Pins filters (to try / been here / exact / approximate); changing a filter refits the map
-  - legend, then the map card: numbered teardrop pins (`L.divIcon`). Numbers follow import order (`GET /api/places` sorts by id) and don't change while filtering.
-  - popup: name, address, approximate note, "Open in Google Maps", "been here" checkbox (with date), reel links
-  - list of matching places: number, name, cleaned caption (hashtags/📍 stripped, ALL CAPS → sentence case), city, exact/approximate, "saved by @poster +N", and a "Been here?" toggle. Clicking a card flies to its pin and opens the popup.
+  - stat chips from `GET /api/stats` (reels saved, on the map, cities; "been there" and "favorites" toggle the matching pin filter; waiting for review → `#/review`)
+  - search (name, city, address, tags, notes, caption, poster; every word must match), City and Pins filters (to try / been here / favorites / exact / approximate), and a horizontally scrolling row of food-tag chips (single select, with counts); changing a filter refits the map
+  - legend, then the map card: numbered teardrop pins (`L.divIcon`), ★ badge on favorites. Numbers follow import order (`GET /api/places` sorts by id) and don't change while filtering.
+  - clustering (`react-leaflet-cluster`): crowded pins merge into count bubbles (coral; teal when every place inside is visited) below zoom 14 (`NO_CLUSTER_ZOOM`). The cluster plugin needs `maxZoom` on `MapContainer`, since the vector basemap doesn't set one.
+  - popup: name + favorite star, address, tags, approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), reel links
+  - list of matching places, sortable by pin number / favorites first / top rated / recently visited: number, name, cleaned caption (hashtags/📍 stripped, ALL CAPS → sentence case), tags, stars + visit date, notes, city, exact/approximate, "saved by @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).
 - Review page (`#/review`): one card per needs_review reel with venue, @poster reel link, Muse confidence/address/note, caption, flag badges (hover for description) and review_reason; filter by flag (with counts). "Fix" opens a panel:

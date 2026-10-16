@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_session
 from app.importer.flags import FLAG_DESCRIPTIONS, in_bay_area
-from app.models import Place, Reel
+from app.models import Place, Reel, Visit
 from app.routers.places import place_city
 from app.schemas import AttachPlaceIn, PlaceBrief, ReviewReelOut, StatsOut
 
@@ -44,12 +44,12 @@ def get_reel(session: Session, reel_id: int) -> Reel:
 
 
 def drop_if_orphaned(session: Session, place: Place | None) -> None:
-    """A place with no reels left and no "been here" disappears from the map."""
+    """A place with no reels left disappears from the map, unless you've logged it (visited, favorite or notes)."""
     if place is None:
         return
     session.flush()
     session.refresh(place)
-    if place.reels or place.extra_reels or any(v.visited for v in place.visits):
+    if place.reels or place.extra_reels or any(v.visited or v.favorite or v.notes for v in place.visits):
         return
     for visit in place.visits:
         session.delete(visit)
@@ -64,6 +64,8 @@ def stats(session: Session = Depends(get_session)):
         on_map=len(places),
         cities=len({c for p in places if (c := place_city(p))}),
         needs_review=session.scalar(select(func.count(Reel.id)).where(Reel.status == "needs_review")),
+        visited=session.scalar(select(func.count(Visit.id)).where(Visit.visited.is_(True))),
+        favorites=session.scalar(select(func.count(Visit.id)).where(Visit.favorite.is_(True))),
     )
 
 

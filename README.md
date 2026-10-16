@@ -4,7 +4,8 @@ A personal map of Bay Area restaurants I've saved from Instagram food reels, wit
 
 Saved reels are exported by Meta's Muse AI as JSON, imported into SQLite, and shown on a dark, stripped-down map (land, water, freeways and city names) with a numbered pin per restaurant.
 
-- **Map:** coral pins are places to try, teal ones are places I've been. Dashed pins are approximate (pop-ups, home cooks, or places Muse could only place in a city). Search by spot, dish or poster, filter by city or pin type, and tap a pin, or a place in the list below the map, for the address, an "Open in Google Maps" link, the reels that mention it, and a "been here" toggle.
+- **Map:** coral pins are places to try, teal ones are places I've been. Dashed pins are approximate (pop-ups, home cooks, or places Muse could only place in a city). Crowded areas group into count bubbles that split as you zoom. Search by spot, dish or poster, filter by city, pin type or food type (pizza, donuts, Korean, seafood… worked out from the captions), and tap a pin, or a place in the list below the map, for the address, an "Open in Google Maps" link and the reels that mention it.
+- **Visit log and favorites:** mark a place "been here", then give it 1–5 stars, the date you went and a note ("get the spicy wings"). Star places you most want to try. The list can sort by favorites, top rated or most recently visited.
 - **Review:** reels Muse couldn't place, or that cover several spots, wait here. Each shows what's missing from the export (flags like `no_venue` or `multi_spot`) and Muse's note. Fix one by dropping a pin on a small map or attaching it to an existing place, or reject it.
 
 No API keys are needed. Pins use Muse's own coordinates, and the map tiles come from [OpenFreeMap](https://openfreemap.org).

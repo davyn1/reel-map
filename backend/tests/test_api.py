@@ -163,6 +163,56 @@ def test_place_city_falls_back_to_address():
 
 
 def test_stats(client):
-    assert client.get("/api/stats").json() == {"reels_saved": 5, "on_map": 3, "cities": 1, "needs_review": 2}
+    assert client.get("/api/stats").json() == {"reels_saved": 5, "on_map": 3, "cities": 1, "needs_review": 2, "visited": 0, "favorites": 0}
     client.post(f"/api/reels/{review_by_url(client)['u4']['id']}/reject")
-    assert client.get("/api/stats").json() == {"reels_saved": 4, "on_map": 3, "cities": 1, "needs_review": 1}
+    assert client.get("/api/stats").json() == {"reels_saved": 4, "on_map": 3, "cities": 1, "needs_review": 1, "visited": 0, "favorites": 0}
+
+
+def visit(client, pid, **body):
+    return client.post(f"/api/places/{pid}/visit", json=body)
+
+
+def test_visit_log_partial_updates(client):
+    pid = places_by_name(client)["Test Cafe"]["id"]
+    out = visit(client, pid, visited=True, rating=4, notes="  get the wings  ").json()
+    assert (out["visited"], out["rating"], out["notes"]) == (True, 4, "get the wings")
+    # only the field sent changes
+    out = visit(client, pid, rating=5).json()
+    assert (out["rating"], out["notes"], out["visited"]) == (5, "get the wings", True)
+    out = visit(client, pid, visited_date="2026-09-01").json()
+    assert out["visited_date"] == "2026-09-01"
+    out = visit(client, pid, notes=None).json()
+    assert out["notes"] is None and out["rating"] == 5
+
+
+def test_unvisiting_clears_date_and_rating_but_keeps_notes_and_favorite(client):
+    pid = places_by_name(client)["Test Cafe"]["id"]
+    visit(client, pid, visited=True, rating=3, notes="ok", favorite=True)
+    out = visit(client, pid, visited=False).json()
+    assert (out["visited"], out["visited_date"], out["rating"]) == (False, None, None)
+    assert (out["notes"], out["favorite"]) == ("ok", True)
+
+
+def test_rating_must_be_1_to_5(client):
+    pid = places_by_name(client)["Test Cafe"]["id"]
+    assert visit(client, pid, rating=6).status_code == 422
+    assert visit(client, pid, rating=0).status_code == 422
+
+
+def test_favorite_and_stats(client):
+    pid = places_by_name(client)["Test Cafe"]["id"]
+    assert visit(client, pid, favorite=True).json()["favorite"] is True
+    visit(client, places_by_name(client)["Deli Board"]["id"], visited=True)
+    stats = client.get("/api/stats").json()
+    assert (stats["favorites"], stats["visited"]) == (1, 1)
+
+
+def test_favorite_place_survives_losing_its_last_reel(client):
+    places = places_by_name(client)
+    visit(client, places["Deli Board"]["id"], favorite=True)
+    client.post(f"/api/reels/{places['Deli Board']['reels'][0]['id']}/reject")
+    assert "Deli Board" in places_by_name(client)
+
+
+def test_places_have_tags(client):
+    assert places_by_name(client)["Deli Board"]["tags"] == ["Sandwiches"]

@@ -139,7 +139,11 @@ function PlacePopup({
     onResize();
   }, [place.visited]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className="popup">
+    // Clicks inside the popup never need to reach the map. Without this, a button that swaps itself
+    // out on click (Edit, Save tags, Cancel) is already gone from the DOM when Leaflet sees the click,
+    // so Leaflet can't tell it came from the popup, treats it as a map click and closes the popup.
+    // (React handles portal clicks first, at the popup's own container.)
+    <div className="popup" onClick={(e) => e.stopPropagation()}>
       <div className="popup-head">
         <h3>{place.name}</h3>
         <FavoriteButton place={place} onUpdate={onUpdate} />

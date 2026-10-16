@@ -403,7 +403,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
                 <span>{place.is_approximate ? "approximate" : "exact address"}</span>
                 {first?.posted_by && (
                   <span>
-                    saved by @{first.posted_by}
+                    saved from @{first.posted_by}
                     {more > 0 ? ` +${more}` : ""}
                   </span>
                 )}

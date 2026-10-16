@@ -1,41 +1,55 @@
 """Food type tags, derived from a place's name, its reels' captions and Muse's notes.
 
-Computed on the fly (not stored), so editing the keyword list re-tags every place.
-Order matters only for display: tags come back in this order.
+Broad on purpose: about a dozen cuisines plus two groups that cut across cuisines
+(Seafood, Sweets & bakery), rather than one tag per dish. A place can have several.
+Computed on the fly (not stored), so editing these lists re-tags every place.
 """
 
 import re
 
 from app.models import Place
 
-TAGS: list[tuple[str, str]] = [
-    ("Pizza", r"pizza"),
-    ("Burgers", r"burgers?|smashburgers?"),
-    ("Fried chicken", r"fried chicken|chicken wings?|wings|popcorn chicken|chicken sandwich|hot honey"),
-    ("Donuts", r"donuts?|doughnuts?|fritters?"),
-    ("Bakery", r"bakery|croissants?|salt bread|pastr(?:y|ies)"),
-    ("Desserts", r"cakes?|desserts?|ice cream|milkshakes?|tiramisu|pudding|cobbler|churros?|candy shop|sweet shop|baklava"),
-    ("Boba & coffee", r"boba|coffee|roastery|matcha|latte"),
-    ("Mexican", r"mexican|tacos?|(?<!rice )burritos?|quesabirria|birria|al pastor|chalupas?|nachos|taqueria"),
-    ("Korean", r"korean|bossam"),
+CUISINES: list[tuple[str, str]] = [
+    ("Mexican", r"mexican|tacos?|(?<!rice )burritos?|quesabirria|birria|al pastor|chalupas?|taqueria|churros?"),
+    ("Korean", r"korean|bossam|bibimbap|bulgogi|kbbq"),
+    ("Chinese", r"chinese|taiwanese|popcorn chicken|sweet (?:&|and) sour|dim sum|dumplings?|skewers|szechuan|sichuan|bok ?choy"),
+    ("Japanese", r"japanese|sushi|ramen|omakase|izakaya"),
     ("Thai", r"thai|tom yum"),
     ("Vietnamese", r"vietnamese|pho|banh mi"),
-    ("Chinese", r"chinese|peking duck|sweet (?:&|and) sour|dim sum|dumplings?"),
-    ("Taiwanese", r"taiwanese"),
-    ("Japanese", r"japanese|sushi|ramen|omakase"),
-    ("Hawaiian", r"hawaiian|poke|loco moco"),
-    ("Middle Eastern", r"falafels?|shawarma|mediterranean|palestinian"),
-    ("Seafood", r"seafood|crab|lobster|shrimp|oysters?|scallops?|salmon|seabass|crawfish"),
-    ("BBQ", r"bbq|barbecue|brisket|skewers"),
-    ("Sandwiches", r"sandwich(?:es)?|deli\b|delicatessen|chopped cheese"),
-    ("Comfort food", r"mac n cheese|mac and cheese|mac n gritz|grits|loaded fries"),
-    ("Vegan", r"vegan|plant[- ]based"),
-    ("Brunch", r"brunch|breakfast"),
-    ("Michelin", r"michelin"),
-    ("Late night", r"late[- ]night|open late"),
+    ("Middle Eastern", r"falafels?|shawarma|mediterranean|palestinian|middle eastern"),
+    ("Hawaiian", r"hawaiian|poke|loco moco|spam musubi"),
+    # Pizza only: "Italian garlic salmon" and "zaza pasta" turned up at soul-food spots.
+    ("Pizza & Italian", r"pizza|pizzeria|trattoria|italian restaurant"),
 ]
 
-_COMPILED = [(label, re.compile(rf"\b(?:{pattern})\b")) for label, pattern in TAGS]
+# Only when none of the cuisines above match: "fried chicken" at a Korean spot is Korean.
+AMERICAN = (
+    "American",
+    r"american|californian|michelin|burgers?|smashburgers?|fried chicken|chicken wings?|wings|chicken sandwich|hot honey|"
+    r"bbq|barbecue|brisket|mac n cheese|mac and cheese|mac n gritz|grits|soul food|chopped cheese|"
+    r"sandwich(?:es)?|deli\b|delicatessen|loaded fries|nachos",
+)
+
+# Groups that sit alongside a cuisine.
+GROUPS: list[tuple[str, str]] = [
+    ("Seafood", r"seafood|crab|lobster|shrimp|oysters?|scallops?|crawfish"),
+    (
+        "Sweets & bakery",
+        r"donuts?|doughnuts?|fritters?|bakery|croissants?|salt bread|pastr(?:y|ies)|cakes?|desserts?|ice cream|"
+        r"milkshakes?|tiramisu|pudding|cobbler|candy shop|sweet shop|baklava|boba|coffee|roastery|matcha",
+    ),
+]
+
+TAG_ORDER = [label for label, _ in CUISINES] + [AMERICAN[0]] + [label for label, _ in GROUPS]
+
+
+def _compile(pairs: list[tuple[str, str]]) -> list[tuple[str, re.Pattern]]:
+    return [(label, re.compile(rf"\b(?:{pattern})\b")) for label, pattern in pairs]
+
+
+_CUISINES = _compile(CUISINES)
+_AMERICAN = _compile([AMERICAN])[0]
+_GROUPS = _compile(GROUPS)
 
 
 def text_for(place: Place) -> str:
@@ -46,4 +60,8 @@ def text_for(place: Place) -> str:
 
 def place_tags(place: Place) -> list[str]:
     text = text_for(place)
-    return [label for label, pattern in _COMPILED if pattern.search(text)]
+    tags = [label for label, pattern in _CUISINES if pattern.search(text)]
+    if not tags and _AMERICAN[1].search(text):
+        tags.append(_AMERICAN[0])
+    tags += [label for label, pattern in _GROUPS if pattern.search(text)]
+    return tags

@@ -82,7 +82,11 @@ To start over, delete `backend/food_map.db` and re-run the import.
 
 Schema changes: `create_all` only creates missing tables, so a column added to an existing table must also be listed in `db._ADDED_COLUMNS`; `init_db` adds it with `ALTER TABLE` and keeps the data.
 
-Food tags are computed, not stored (`tags.place_tags`): the first matching keyword regex per tag over the place name, its reels' venue/caption, and Muse's notes. Whole words only; edit `tags.TAGS` to change them, and every place is re-tagged on the next request.
+Food tags are computed, not stored (`tags.place_tags`), from keyword regexes over the place name, its reels' venue/caption, and Muse's notes (whole words only). They are deliberately broad, about 12 in all, not one per dish:
+- cuisines (`tags.CUISINES`): Mexican, Korean, Chinese (incl. Taiwanese), Japanese, Thai, Vietnamese, Middle Eastern, Hawaiian, Pizza & Italian
+- American (`tags.AMERICAN`): only when no cuisine above matched, so "fried chicken" at a Korean spot stays Korean
+- groups that sit alongside a cuisine (`tags.GROUPS`): Seafood, Sweets & bakery (donuts, cakes, boba, coffee…)
+Prefer widening an existing tag's keywords over adding a new tag. Edits re-tag every place on the next request.
 
 One place has many reels. The Google Maps link is computed (not stored) from name + address, falling back to lat/lng.
 
@@ -159,7 +163,7 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
   - search (name, city, address, tags, notes, caption, poster; every word must match), City and Pins filters (to try / been here / favorites / exact / approximate), and a horizontally scrolling row of food-tag chips (single select, with counts); changing a filter refits the map
   - legend, then the map card: numbered teardrop pins (`L.divIcon`), ★ badge on favorites. Numbers follow import order (`GET /api/places` sorts by id) and don't change while filtering.
   - clustering (`react-leaflet-cluster`): crowded pins merge into count bubbles (coral; teal when every place inside is visited) below zoom 14 (`NO_CLUSTER_ZOOM`). The cluster plugin needs `maxZoom` on `MapContainer`, since the vector basemap doesn't set one.
-  - popup: name + favorite star, address, tags, approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), reel links
+  - popup: name + favorite star, address, food tags, approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), reel links
   - list of matching places, sortable by pin number / favorites first / top rated / recently visited: number, name, cleaned caption (hashtags/📍 stripped, ALL CAPS → sentence case), tags, stars + visit date, notes, city, exact/approximate, "saved by @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).

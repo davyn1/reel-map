@@ -215,4 +215,4 @@ def test_favorite_place_survives_losing_its_last_reel(client):
 
 
 def test_places_have_tags(client):
-    assert places_by_name(client)["Deli Board"]["tags"] == ["Sandwiches"]
+    assert places_by_name(client)["Deli Board"]["tags"] == ["American"]

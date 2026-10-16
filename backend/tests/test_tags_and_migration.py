@@ -9,18 +9,34 @@ def tagged(name, dish="", note=""):
     return place_tags(Place(name=name, lat=0, lng=0, reels=[Reel(post_url="u", venue_raw=name, dish=dish, muse_note=note)]))
 
 
-def test_tags_from_captions_and_notes():
-    assert tagged("Pizza Gallery", "HOT LEMON PEPPER CHICKEN WINGS AND VODKA SAUCE PIZZA") == ["Pizza", "Fried chicken"]
+def test_broad_cuisine_tags():
+    assert tagged("Pizza Gallery", "HOT LEMON PEPPER CHICKEN WINGS AND VODKA SAUCE PIZZA") == ["Pizza & Italian"]
     assert tagged("Tangjip", "best bossam", note="Korean") == ["Korean"]
-    assert tagged("Stan’s Doughnut", "Seriously the best doughnut") == ["Donuts"]
+    assert tagged("The Burger Shop", "ONE OF MY FAVORITE SMASHBURGERS") == ["American"]
 
 
-def test_rice_burrito_is_not_mexican():
-    assert tagged("Mitk Kitchen", "TAIWANESE RICE BURRITO WITH BRAISED PORK BELLY") == ["Taiwanese"]
+def test_american_only_when_no_other_cuisine():
+    # fried chicken at a Korean spot is Korean, not American too
+    assert tagged("Matzip Korean Restaurant", "best Asian fried chicken wings") == ["Korean"]
+    assert tagged("Sweetheart Cafe", "popcorn chicken + boba") == ["Chinese", "Sweets & bakery"]
+
+
+def test_groups_sit_alongside_cuisines():
+    assert tagged("Stan’s Doughnut", "Seriously the best doughnut") == ["Sweets & bakery"]
+    assert tagged("Hyphy Burger", "FRUITY PEBBLES MILKSHAKE") == ["American", "Sweets & bakery"]
+    assert tagged("GAO's BBQ & Crab", "giant oysters, $1 skewers") == ["Chinese", "Seafood"]
+
+
+def test_taiwanese_rice_burrito_is_chinese_not_mexican():
+    assert tagged("Mitk Kitchen", "TAIWANESE RICE BURRITO WITH BRAISED PORK BELLY") == ["Chinese"]
+
+
+def test_italian_words_at_soul_food_spots_dont_make_it_italian():
+    assert tagged("Rome's Kitchen", "BRISKET MAC N CHEESE, ITALIAN GARLIC SALMON MASH") == ["American"]
 
 
 def test_words_must_match_whole():
-    assert tagged("Shrimpn Ain’t Eazy", "Da Grubby Chopped Cheese") == ["Sandwiches"]  # not Seafood
+    assert tagged("Shrimpn Ain’t Eazy", "Da Grubby Chopped Cheese") == ["American"]  # "shrimpn" isn't seafood
     assert tagged("Phoenix Diner") == []  # "pho" inside a word
 
 

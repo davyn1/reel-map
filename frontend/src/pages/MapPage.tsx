@@ -4,6 +4,7 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import type { LatLngBoundsExpression, Marker as LeafletMarker, MarkerClusterGroup as LeafletClusterGroup } from "leaflet";
 import { api, type Place, type Stats, type VisitUpdate } from "../api";
 import { MinimalBasemap } from "../basemap";
+import { TagEditor } from "../components/TagEditor";
 import { FavoriteButton, Stars, VisitLog } from "../components/VisitLog";
 import { cleanCaption, clusterIcon, pinClasses, pinIcon, spreadOverlaps, type Pin } from "../mapUtils";
 
@@ -120,7 +121,23 @@ function FlyToSelected({
   return null;
 }
 
-function PlacePopup({ place, onUpdate }: { place: Place; onUpdate: (u: VisitUpdate) => Promise<void> }) {
+function PlacePopup({
+  place,
+  allTags,
+  onUpdate,
+  onTags,
+  onResize,
+}: {
+  place: Place;
+  allTags: string[];
+  onUpdate: (u: VisitUpdate) => Promise<void>;
+  onTags: (tags: string[] | null) => Promise<void>;
+  onResize: () => void;
+}) {
+  // Ticking "Been here" adds the rating row; let Leaflet re-measure and re-pan.
+  useEffect(() => {
+    onResize();
+  }, [place.visited]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="popup">
       <div className="popup-head">
@@ -128,7 +145,7 @@ function PlacePopup({ place, onUpdate }: { place: Place; onUpdate: (u: VisitUpda
         <FavoriteButton place={place} onUpdate={onUpdate} />
       </div>
       {place.address && <div className="popup-address">{place.address}</div>}
-      {place.tags.length > 0 && <div className="popup-tags">{place.tags.join(" · ")}</div>}
+      <TagEditor place={place} allTags={allTags} onSave={onTags} onResize={onResize} />
       {place.is_approximate && (
         <div className="popup-approx">Approximate location: pop-up, home cook or city-level pin.</div>
       )}
@@ -160,6 +177,7 @@ function SearchIcon() {
 
 export default function MapPage({ stats, onChanged }: { stats: Stats | null; onChanged: () => void }) {
   const [places, setPlaces] = useState<Place[] | null>(null);
+  const [allTags, setAllTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
@@ -173,6 +191,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
 
   useEffect(() => {
     api.places().then(setPlaces).catch((e) => setError(String(e)));
+    api.tags().then(setAllTags).catch(() => setAllTags([]));
   }, []);
 
   // Numbers follow import order and stay put while filtering, so "#12" always means the same place.
@@ -197,11 +216,22 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
   const pins = useMemo(() => spreadOverlaps(shown), [shown]);
   const listed = useMemo(() => sortBy(shown, sort), [shown, sort]);
 
+  function replace(updated: Place) {
+    setPlaces((prev) => prev?.map((p) => (p.id === updated.id ? updated : p)) ?? null);
+  }
+
   async function update(placeId: number, change: VisitUpdate) {
     try {
-      const updated = await api.updateVisit(placeId, change);
-      setPlaces((prev) => prev?.map((p) => (p.id === updated.id ? updated : p)) ?? null);
+      replace(await api.updateVisit(placeId, change));
       onChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function setTags(placeId: number, tags: string[] | null) {
+    try {
+      replace(await api.setTags(placeId, tags));
     } catch (e) {
       setError(String(e));
     }
@@ -323,6 +353,10 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
             maxClusterRadius={45}
             disableClusteringAtZoom={NO_CLUSTER_ZOOM}
             showCoverageOnHover={false}
+            // Off: after a pan the plugin drops markers it thinks are off-screen, and removing a
+            // marker closes its popup (e.g. while the popup re-pans to fit the tag editor).
+            // Only useful for thousands of markers.
+            removeOutsideVisibleBounds={false}
             spiderfyOnMaxZoom
             chunkedLoading
           >
@@ -338,8 +372,14 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
                   else markers.delete(pin.place.id);
                 }}
               >
-                <Popup>
-                  <PlacePopup place={pin.place} onUpdate={(u) => update(pin.place.id, u)} />
+                <Popup autoPanPadding={[12, 12]}>
+                  <PlacePopup
+                    place={pin.place}
+                    allTags={allTags}
+                    onUpdate={(u) => update(pin.place.id, u)}
+                    onTags={(t) => setTags(pin.place.id, t)}
+                    onResize={() => requestAnimationFrame(() => markers.get(pin.place.id)?.getPopup()?.update())}
+                  />
                 </Popup>
               </Marker>
             ))}

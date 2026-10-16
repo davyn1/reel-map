@@ -49,6 +49,7 @@ def test_migration_adds_favorite_to_an_old_database(tmp_path):
         conn.execute(text("INSERT INTO visits VALUES (1, 1, 'me', 1, '2026-10-01', 4, 'good')"))
     init_db(engine)
     assert "favorite" in {c["name"] for c in inspect(engine).get_columns("visits")}
+    assert "tags_override" in {c["name"] for c in inspect(engine).get_columns("places")}
     with engine.connect() as conn:
         assert conn.execute(text("SELECT visited, rating, notes, favorite FROM visits")).one() == (1, 4, "good", 0)
     init_db(engine)  # running again is a no-op

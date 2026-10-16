@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.db import get_session
 from app.maps_link import google_maps_url
 from app.models import Place, Visit
-from app.schemas import PlaceOut, ReelBrief, VisitIn
-from app.tags import place_tags
+from app.schemas import PlaceOut, ReelBrief, TagsIn, VisitIn
+from app.tags import TAG_ORDER, place_tags, sort_tags
 
 router = APIRouter(prefix="/api/places", tags=["places"])
 
@@ -40,6 +40,7 @@ def place_out(place: Place) -> PlaceOut:
         address=place.address,
         city=place_city(place),
         tags=place_tags(place),
+        tags_edited=place.tags_override is not None,
         is_approximate=place.is_approximate,
         google_maps_url=google_maps_url(place.name, place.address, place.lat, place.lng),
         visited=bool(visit and visit.visited),
@@ -92,5 +93,22 @@ def update_visit(place_id: int, body: VisitIn, session: Session = Depends(get_se
         visit.notes = (body.notes or "").strip() or None
     if "favorite" in sent and body.favorite is not None:
         visit.favorite = body.favorite
+    session.commit()
+    return place_out(place)
+
+
+@router.put("/{place_id}/tags", response_model=PlaceOut)
+def set_tags(place_id: int, body: TagsIn, session: Session = Depends(get_session)):
+    """Pick a place's tags by hand (any of GET /api/tags, or none), or send null to go back to automatic."""
+    place = session.get(Place, place_id)
+    if place is None:
+        raise HTTPException(404, "place not found")
+    if body.tags is not None:
+        unknown = sorted(set(body.tags) - set(TAG_ORDER))
+        if unknown:
+            raise HTTPException(422, f"unknown tag(s): {', '.join(unknown)}; choose from GET /api/tags")
+        place.tags_override = sort_tags(body.tags)
+    else:
+        place.tags_override = None
     session.commit()
     return place_out(place)

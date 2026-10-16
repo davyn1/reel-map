@@ -23,6 +23,7 @@ def init_db(bind=engine) -> None:
 # here and added in place, so an existing food_map.db keeps its data.
 _ADDED_COLUMNS = {
     "visits": {"favorite": "BOOLEAN NOT NULL DEFAULT 0"},
+    "places": {"tags_override": "JSON"},
 }
 
 

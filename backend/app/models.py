@@ -25,6 +25,8 @@ class Place(Base):
     lng: Mapped[float] = mapped_column(Float)
     address: Mapped[str | None] = mapped_column(String)
     is_approximate: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Tags you picked by hand; None means use the automatic ones (app.tags).
+    tags_override: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     reels: Mapped[list["Reel"]] = relationship(back_populates="place")
     extra_reels: Mapped[list["Reel"]] = relationship(secondary=reel_extra_places, back_populates="extra_places")

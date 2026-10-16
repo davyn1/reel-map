@@ -75,7 +75,7 @@ To start over, delete `backend/food_map.db` and re-run the import.
 
 ## Data model
 
-- **places**: id, name, lat, lng, address, is_approximate (bool)
+- **places**: id, name, lat, lng, address, is_approximate (bool), tags_override (JSON list or null: hand-picked food tags; null = automatic)
 - **reels**: id, post_url (unique; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file
 - **reel_extra_places**: reel_id, place_id. Extra spots for multi-spot reels; `reels.place_id` stays the reel's main place.
 - **visits**: id, place_id, user, visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Single-user for now: `user` is `"me"`. Notes and favorite don't require a visit.
@@ -86,7 +86,7 @@ Food tags are computed, not stored (`tags.place_tags`), from keyword regexes ove
 - cuisines (`tags.CUISINES`): Mexican, Korean, Chinese (incl. Taiwanese), Japanese, Thai, Vietnamese, Middle Eastern, Hawaiian, Pizza & Italian
 - American (`tags.AMERICAN`): only when no cuisine above matched, so "fried chicken" at a Korean spot stays Korean
 - groups that sit alongside a cuisine (`tags.GROUPS`): Seafood, Sweets & bakery (donuts, cakes, boba, coffee…)
-Prefer widening an existing tag's keywords over adding a new tag. Edits re-tag every place on the next request.
+Prefer widening an existing tag's keywords over adding a new tag. Edits re-tag every place on the next request, except places whose tags were picked by hand (`places.tags_override`), which keep their pick until reset. Hand-picked tags must come from the same fixed list (`tags.TAG_ORDER`), so the filter row stays short.
 
 One place has many reels. The Google Maps link is computed (not stored) from name + address, falling back to lat/lng.
 
@@ -143,6 +143,8 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 - `GET /api/places` — every place (in import order) with `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
 - `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`, `visited`, `favorites`
 - `POST /api/places/{id}/visit` — partial update of the visit log: any of `visited`, `visited_date`, `rating` (1–5), `notes`, `favorite`; only fields sent change, `null` clears rating/notes/date. `visited` takes the desired state rather than flipping, so a double click can't undo itself. Turning it on stamps today's date (unless one is sent); turning it off clears date and rating but keeps notes and favorite.
+- `GET /api/tags` — every food tag, in display order
+- `PUT /api/places/{id}/tags` `{"tags": [...]}` — pick a place's tags by hand (any subset of `GET /api/tags`, deduped and sorted; 422 on unknown tags), or `{"tags": null}` to go back to automatic. Places carry `tags_edited`.
 - `GET /api/flags` — flag code → description, for badges
 - `GET /api/reels/review?flag=` — reels with status `needs_review`, optionally filtered by flag (422 on unknown flag)
 - `POST /api/reels/{id}/place` `{"place_id": n}` or `{"new_place": {name, lat, lng, address?, is_approximate?}}`, plus `mode`:
@@ -162,8 +164,9 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
   - stat chips from `GET /api/stats` (reels saved, on the map, cities; "been there" and "favorites" toggle the matching pin filter; waiting for review → `#/review`)
   - search (name, city, address, tags, notes, caption, poster; every word must match), City and Pins filters (to try / been here / favorites / exact / approximate), and a horizontally scrolling row of food-tag chips (single select, with counts); changing a filter refits the map
   - legend, then the map card: numbered teardrop pins (`L.divIcon`), ★ badge on favorites. Numbers follow import order (`GET /api/places` sorts by id) and don't change while filtering.
-  - clustering (`react-leaflet-cluster`): crowded pins merge into count bubbles (coral; teal when every place inside is visited) below zoom 14 (`NO_CLUSTER_ZOOM`). The cluster plugin needs `maxZoom` on `MapContainer`, since the vector basemap doesn't set one.
-  - popup: name + favorite star, address, food tags, approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), reel links
+  - clustering (`react-leaflet-cluster`): crowded pins merge into count bubbles (coral; teal when every place inside is visited) below zoom 14 (`NO_CLUSTER_ZOOM`). The cluster plugin needs `maxZoom` on `MapContainer`, since the vector basemap doesn't set one. `removeOutsideVisibleBounds` is off: with it on, the plugin drops markers after a pan, and removing a marker closes its popup.
+  - popup height is capped in CSS (`.popup`), not with Leaflet's `maxHeight`: Leaflet measures before React fills the popup. When the popup grows (tag editor opens, "Been here" adds the rating row) it calls `marker.getPopup().update()` so Leaflet re-pans to fit it in the map card.
+  - popup: name + favorite star, address, food tags with "Edit" (toggles for all tags, Save / Cancel / "Reset to automatic"; "edited" badge when hand-picked), approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), reel links
   - list of matching places, sortable by pin number / favorites first / top rated / recently visited: number, name, cleaned caption (hashtags/📍 stripped, ALL CAPS → sentence case), tags, stars + visit date, notes, city, exact/approximate, "saved from @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).

@@ -22,6 +22,7 @@ class PlaceOut(BaseModel):
     is_approximate: bool
     google_maps_url: str
     tags: list[str]
+    tags_edited: bool  # tags were picked by hand rather than worked out from captions
     visited: bool
     visited_date: date | None
     rating: int | None
@@ -63,6 +64,12 @@ class ReviewReelOut(BaseModel):
     review_reason: str | None
     place: PlaceBrief | None
     extra_places: list[PlaceBrief]
+
+
+class TagsIn(BaseModel):
+    """Tags to show for a place, from GET /api/tags. null goes back to automatic tags."""
+
+    tags: list[str] | None
 
 
 class VisitIn(BaseModel):

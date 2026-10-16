@@ -216,3 +216,22 @@ def test_favorite_place_survives_losing_its_last_reel(client):
 
 def test_places_have_tags(client):
     assert places_by_name(client)["Deli Board"]["tags"] == ["American"]
+
+
+def test_edit_tags_then_reset(client):
+    pid = places_by_name(client)["Deli Board"]["id"]
+    assert client.get("/api/tags").json()[0] == "Mexican"
+    out = client.put(f"/api/places/{pid}/tags", json={"tags": ["Seafood", "American", "American"]}).json()
+    assert (out["tags"], out["tags_edited"]) == (["American", "Seafood"], True)  # deduped, display order
+    assert places_by_name(client)["Deli Board"]["tags"] == ["American", "Seafood"]
+    out = client.put(f"/api/places/{pid}/tags", json={"tags": []}).json()
+    assert (out["tags"], out["tags_edited"]) == ([], True)
+    out = client.put(f"/api/places/{pid}/tags", json={"tags": None}).json()
+    assert (out["tags"], out["tags_edited"]) == (["American"], False)
+
+
+def test_edit_tags_rejects_unknown_tags(client):
+    pid = places_by_name(client)["Deli Board"]["id"]
+    res = client.put(f"/api/places/{pid}/tags", json={"tags": ["Sandwiches"]})
+    assert res.status_code == 422 and "Sandwiches" in res.json()["detail"]
+    assert client.put("/api/places/999/tags", json={"tags": []}).status_code == 404

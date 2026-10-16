@@ -18,6 +18,7 @@ export interface Place {
   is_approximate: boolean;
   google_maps_url: string;
   tags: string[];
+  tags_edited: boolean; // picked by hand rather than worked out from captions
   visited: boolean;
   visited_date: string | null; // YYYY-MM-DD
   rating: number | null; // 1-5
@@ -105,6 +106,10 @@ export const api = {
       body: JSON.stringify(update),
     }),
   stats: () => request<Stats>("/api/stats"),
+  tags: () => request<string[]>("/api/tags"),
+  /** Pick a place's tags by hand, or pass null to go back to the automatic ones. */
+  setTags: (placeId: number, tags: string[] | null) =>
+    request<Place>(`/api/places/${placeId}/tags`, { method: "PUT", body: JSON.stringify({ tags }) }),
   flags: () => request<Record<string, string>>("/api/flags"),
   reviewQueue: () => request<ReviewReel[]>("/api/reels/review"),
   attachPlace: (reelId: number, body: AttachBody) =>

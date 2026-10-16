@@ -59,6 +59,17 @@ def text_for(place: Place) -> str:
 
 
 def place_tags(place: Place) -> list[str]:
+    """Tags shown for a place: the ones you picked if you edited them, else the automatic ones."""
+    if place.tags_override is not None:
+        return sort_tags(place.tags_override)
+    return auto_tags(place)
+
+
+def sort_tags(tags: list[str]) -> list[str]:
+    return sorted(set(tags), key=TAG_ORDER.index)
+
+
+def auto_tags(place: Place) -> list[str]:
     text = text_for(place)
     tags = [label for label, pattern in _CUISINES if pattern.search(text)]
     if not tags and _AMERICAN[1].search(text):

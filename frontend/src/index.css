@@ -124,13 +124,26 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .leaflet-container .leaflet-control-zoom a { color: #222; }
 .leaflet-container .leaflet-control-attribution a { color: var(--muted); }
 .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
-.popup { min-width: 220px; max-width: 280px; font-size: 0.86rem; line-height: 1.4; }
+/* Height capped in CSS, not Leaflet's maxHeight: Leaflet measures before React fills the popup
+   and never re-measures when the tag editor opens. Keeps a tall popup inside the map card. */
+.popup {
+  min-width: 220px; max-width: 280px; font-size: 0.86rem; line-height: 1.4;
+  max-height: min(300px, calc(48vh - 70px)); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px;
+}
 .popup h3 { margin: 0 0 4px; font-size: 1rem; }
 .popup-address { color: var(--muted); margin-bottom: 6px; }
 .popup-approx { background: rgba(227, 179, 65, 0.15); color: var(--warn); padding: 4px 8px; border-radius: 8px; margin-bottom: 6px; }
 .popup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .popup-head .fav-btn { width: 30px; height: 30px; margin-top: -4px; }
-.popup-tags { color: var(--muted); font-size: 0.8rem; margin-bottom: 6px; }
+.tag-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 0.8rem; margin-bottom: 6px; }
+.tag-line .edited { font-size: 0.7rem; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); }
+.link-btn { border: none; background: none; padding: 0; color: var(--accent); font-size: 0.8rem; text-decoration: underline; }
+.tag-editor { display: grid; gap: 8px; margin: 4px 0 8px; }
+.tag-options { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag-options .tag-chip { padding: 3px 9px; font-size: 0.78rem; }
+.tag-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tag-editor-actions button { font-size: 0.78rem; padding: 4px 10px; }
+.tag-editor-actions .link-btn { padding: 0; }
 .visit-log { display: grid; gap: 6px; margin: 10px 0 8px; }
 .visit-toggle { display: flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
 .visit-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

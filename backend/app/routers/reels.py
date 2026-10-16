@@ -6,6 +6,7 @@ from app.db import get_session
 from app.importer.flags import FLAG_DESCRIPTIONS, in_bay_area
 from app.models import Place, Reel, Visit
 from app.routers.places import place_city
+from app.tags import TAG_ORDER
 from app.schemas import AttachPlaceIn, PlaceBrief, ReviewReelOut, StatsOut
 
 router = APIRouter(prefix="/api", tags=["reels"])
@@ -67,6 +68,12 @@ def stats(session: Session = Depends(get_session)):
         visited=session.scalar(select(func.count(Visit.id)).where(Visit.visited.is_(True))),
         favorites=session.scalar(select(func.count(Visit.id)).where(Visit.favorite.is_(True))),
     )
+
+
+@router.get("/tags")
+def list_tags() -> list[str]:
+    """Every food tag, in display order. Hand-picked tags must come from this list."""
+    return TAG_ORDER
 
 
 @router.get("/flags")

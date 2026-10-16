@@ -6,7 +6,7 @@ import { api, type Place, type Stats, type VisitUpdate } from "../api";
 import { MinimalBasemap } from "../basemap";
 import { TagEditor } from "../components/TagEditor";
 import { FavoriteButton, Stars, VisitLog } from "../components/VisitLog";
-import { cleanCaption, clusterIcon, pinClasses, pinIcon, spreadOverlaps, type Pin } from "../mapUtils";
+import { cleanCaption, clusterIcon, pinClasses, pinIcon, placeIcon, spreadOverlaps, type Pin } from "../mapUtils";
 
 const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 // Zoomed in this far, every pin shows on its own.
@@ -24,7 +24,7 @@ const PIN_TYPES: [PinType, string][] = [
 
 type SortKey = "number" | "rating" | "recent" | "favorites";
 const SORTS: [SortKey, string][] = [
-  ["number", "Pin number"],
+  ["number", "Default"],
   ["favorites", "Favorites first"],
   ["rating", "Top rated"],
   ["recent", "Recently visited"],
@@ -198,7 +198,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
     api.tags().then(setAllTags).catch(() => setAllTags([]));
   }, []);
 
-  // Numbers follow import order and stay put while filtering, so "#12" always means the same place.
+  // Import order, kept as the default list order and as the tiebreak for other sorts. Not shown.
   const numbered = useMemo(() => (places ?? []).map((place, i) => ({ place, number: i + 1 })), [places]);
   const cities = useMemo(() => countBy(places ?? [], (p) => (p.city ? [p.city] : [])), [places]);
   const tags = useMemo(
@@ -368,7 +368,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
               <Marker
                 key={pin.place.id}
                 position={pin.position}
-                icon={pinIcon(pin.number, pin.place, pin.place.id === selectedId)}
+                icon={pinIcon(pin.place, pin.place.id === selectedId)}
                 zIndexOffset={pin.place.id === selectedId ? 1000 : 0}
                 eventHandlers={{ click: () => setSelectedId(pin.place.id) }}
                 ref={(m) => {
@@ -410,7 +410,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
         </label>
       </div>
       {places && shown.length === 0 && <p className="empty">No places match. Try clearing the search or filters.</p>}
-      {listed.map(({ place, number }) => {
+      {listed.map(({ place }) => {
         const first = place.reels[0];
         const caption = cleanCaption(first?.dish ?? null);
         const more = place.reels.length - 1;
@@ -423,7 +423,9 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
             onClick={() => focus(place.id)}
             onKeyDown={(e) => e.key === "Enter" && focus(place.id)}
           >
-            <span className={`num ${pinClasses(place)}`}>{number}</span>
+            <span className={`num ${pinClasses(place)}`} aria-hidden="true">
+              {placeIcon(place)}
+            </span>
             <div className="body">
               <h3>{place.name}</h3>
               {caption && <p className="dish">{caption}</p>}

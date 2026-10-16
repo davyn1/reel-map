@@ -33,22 +33,44 @@ export function spreadOverlaps(items: { place: Place; number: number }[]): Pin[]
   return pins;
 }
 
+// One icon per food tag (backend/app/tags.py); a place shows the icon of its first tag.
+const TAG_ICONS: Record<string, string> = {
+  Mexican: "🌮",
+  Korean: "🍲",
+  Chinese: "🥟",
+  Japanese: "🍣",
+  Thai: "🌶️",
+  Vietnamese: "🍜",
+  "Middle Eastern": "🧆",
+  Hawaiian: "🌺",
+  "Pizza & Italian": "🍕",
+  American: "🍔",
+  Seafood: "🦞",
+  "Sweets & bakery": "🍩",
+};
+
+export function placeIcon(place: Place): string {
+  return TAG_ICONS[place.tags[0]] ?? "🍽️";
+}
+
 export function pinClasses(place: Place): string {
   return [place.visited ? "visited" : "todo", place.is_approximate ? "approx" : ""].join(" ").trim();
 }
 
 const iconCache = new Map<string, L.DivIcon>();
 
-/** Numbered teardrop pin, with a star badge for favorites. Cached so re-renders don't rebuild every marker's DOM. */
-export function pinIcon(number: number, place: Place, selected: boolean): L.DivIcon {
+/** Teardrop pin showing the place's food icon, with a star badge for favorites.
+ * No numbers: they read like a ranking. Cached so re-renders don't rebuild every marker's DOM. */
+export function pinIcon(place: Place, selected: boolean): L.DivIcon {
   const classes = `pin ${pinClasses(place)}${selected ? " selected" : ""}`;
-  const key = `${number}|${classes}|${place.favorite}`;
+  const glyph = placeIcon(place);
+  const key = `${glyph}|${classes}|${place.favorite}`;
   let icon = iconCache.get(key);
   if (!icon) {
     const star = place.favorite ? '<b class="pin-star">★</b>' : "";
     icon = L.divIcon({
       className: "pin-icon",
-      html: `<div class="${classes}"><span>${number}</span></div>${star}`,
+      html: `<div class="${classes}"><span>${glyph}</span></div>${star}`,
       iconSize: [32, 32],
       iconAnchor: [16, 39], // the tip sits ~7px below the rotated square
       popupAnchor: [0, -36],

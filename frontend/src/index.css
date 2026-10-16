@@ -97,12 +97,11 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
   display: grid; place-items: center; border: 2px solid rgba(0, 0, 0, 0.25);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
 }
-.pin span { transform: rotate(45deg); font-size: 0.78rem; font-weight: 700; color: #1b1b1b; }
+.pin span { transform: rotate(45deg); font-size: 15px; line-height: 1; }
 .pin.todo { background: var(--todo); }
 .pin.visited { background: var(--visited); }
 .pin.approx { background: rgba(30, 30, 30, 0.75); border: 2px dashed var(--todo); }
 .pin.approx.visited { border-color: var(--visited); }
-.pin.approx span { color: var(--text); }
 .pin.selected { box-shadow: 0 0 0 3px #fff, 0 2px 8px rgba(0, 0, 0, 0.6); }
 .pin-star {
   position: absolute; top: -8px; right: -9px; font-size: 15px; line-height: 1;
@@ -170,10 +169,10 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .place-card.selected { border-color: var(--accent); }
 .num {
   flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
-  font-weight: 700; color: #1b1b1b; background: var(--todo);
+  font-size: 18px; line-height: 1; background: var(--todo);
 }
 .num.visited { background: var(--visited); }
-.num.approx { background: transparent; border: 2px dashed var(--todo); color: var(--text); }
+.num.approx { background: transparent; border: 2px dashed var(--todo); }
 .num.approx.visited { border-color: var(--visited); }
 .place-card .body { flex: 1; min-width: 0; }
 .place-card h3 { margin: 0 0 4px; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.01em; }

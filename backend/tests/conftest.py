@@ -10,6 +10,16 @@ from app.db import init_db
 REAL_EXPORT = Path(__file__).resolve().parents[2] / "data" / "reels.json"
 
 
+@pytest.fixture(autouse=True)
+def log_in_tmp(tmp_path, monkeypatch):
+    """Never let tests write the real personal/my-log.json."""
+    from app import backup
+
+    path = tmp_path / "personal" / "my-log.json"
+    monkeypatch.setattr(backup, "LOG_PATH", path)
+    return path
+
+
 @pytest.fixture
 def session():
     engine = create_engine("sqlite://")

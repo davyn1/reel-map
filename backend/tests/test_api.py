@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -235,3 +237,12 @@ def test_edit_tags_rejects_unknown_tags(client):
     res = client.put(f"/api/places/{pid}/tags", json={"tags": ["Sandwiches"]})
     assert res.status_code == 422 and "Sandwiches" in res.json()["detail"]
     assert client.put("/api/places/999/tags", json={"tags": []}).status_code == 404
+
+
+def test_api_changes_update_the_log(client, log_in_tmp):
+    pid = next(p["id"] for p in client.get("/api/places").json() if p["name"] == "Test Cafe")
+    client.post(f"/api/places/{pid}/visit", json={"visited": True, "rating": 4})
+    entry = json.loads(log_in_tmp.read_text(encoding="utf-8"))["places"][0]
+    assert (entry["name"], entry["rating"]) == ("Test Cafe", 4)
+    client.put(f"/api/places/{pid}/tags", json={"tags": ["Thai"]})
+    assert json.loads(log_in_tmp.read_text(encoding="utf-8"))["places"][0]["tags"] == ["Thai"]

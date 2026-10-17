@@ -80,9 +80,34 @@ cd frontend && npm run typecheck
 - [ ] Muse handoff: have Muse push new saves somewhere the app picks up (a shared file, email or webhook). Depends on what Muse can do: run on a schedule, write outside the chat, tell which reels are new
 - [ ] Watch a folder (e.g. a synced Drive folder) and import new `reels*.json` automatically
 
-## Privacy
+## Personal data in this repo
 
-`data/*.json` (your exports), the SQLite database and `.env` are gitignored. Only code is committed.
+The repo is private, and one folder of personal data is committed on purpose: `personal/my-log.json`. It holds what can't be rebuilt from a Muse export: been-here, visit dates, ratings, notes, favorites and hand-picked tags. The app rewrites it after every change; commit it like any other file. Places are matched by reel URL, so it can be restored onto a fresh database:
+
+```bash
+# backend/ : after importing the Muse exports on a new machine
+python -m app.backup restore
+python -m app.backup export     # rewrite the log from the database by hand
+```
+
+Still gitignored: `data/*.json` (Muse exports), the SQLite database and `.env`.
+
+**Rule: personal data goes only in `personal/`.** That keeps it removable in one step.
+
+### Before making the repo public
+
+Deleting `personal/` in a new commit isn't enough, because every earlier commit still contains it. Either:
+
+- **Simplest:** create a new public repo from a copy of the current files without `personal/` (no history comes along), and keep this private repo as your backup; or
+- **Keep the history, minus personal data:**
+  ```bash
+  pip install git-filter-repo
+  git filter-repo --path personal --invert-paths   # rewrites every commit without personal/
+  echo "personal/" >> .gitignore                   # then keep the log local only
+  git remote add origin https://github.com/davyn1/reel-map.git   # filter-repo removes the remote
+  git push --force origin main
+  ```
+  Anyone who already cloned the repo keeps the old history, so do this before sharing it.
 
 ## More detail
 

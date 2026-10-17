@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app import backup
 from app.db import get_session
 from app.maps_link import google_maps_url
 from app.models import Place, Visit
@@ -94,6 +95,7 @@ def update_visit(place_id: int, body: VisitIn, session: Session = Depends(get_se
     if "favorite" in sent and body.favorite is not None:
         visit.favorite = body.favorite
     session.commit()
+    backup.save_log_quietly(session)
     return place_out(place)
 
 
@@ -111,4 +113,5 @@ def set_tags(place_id: int, body: TagsIn, session: Session = Depends(get_session
     else:
         place.tags_override = None
     session.commit()
+    backup.save_log_quietly(session)
     return place_out(place)

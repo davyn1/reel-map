@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app import backup
 from app.db import get_session
 from app.importer.flags import FLAG_DESCRIPTIONS, in_bay_area
 from app.models import Place, Reel, Visit
@@ -121,6 +122,7 @@ def attach_place(reel_id: int, body: AttachPlaceIn, session: Session = Depends(g
         if previous is not place:
             drop_if_orphaned(session, previous)
     session.commit()
+    backup.save_log_quietly(session)
     return reel_out(reel)
 
 
@@ -133,6 +135,7 @@ def resolve(reel_id: int, session: Session = Depends(get_session)):
     reel.status = "matched"
     reel.review_reason = None
     session.commit()
+    backup.save_log_quietly(session)
     return reel_out(reel)
 
 
@@ -146,4 +149,5 @@ def reject(reel_id: int, session: Session = Depends(get_session)):
     for place in [previous, *extras]:
         drop_if_orphaned(session, place)
     session.commit()
+    backup.save_log_quietly(session)
     return reel_out(reel)

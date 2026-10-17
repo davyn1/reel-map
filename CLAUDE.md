@@ -10,7 +10,7 @@ Pins use Muse's own coordinates. There is no Google Places (or any external API)
 
 - Backend: Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite (`backend/food_map.db`)
 - Frontend: React (Vite) + Leaflet (react-leaflet). Main map basemap: OpenFreeMap vector tiles rendered by MapLibre GL inside Leaflet (`@maplibre/maplibre-gl-leaflet`), no API key. Review page pin picker: CARTO dark raster tiles (street detail helps place pins).
-- `.env`, `data/*.json` and the SQLite file are gitignored
+- `.env`, `data/*.json` and the SQLite file are gitignored; `personal/my-log.json` is committed on purpose (see Personal data)
 
 ## Folder layout
 
@@ -22,6 +22,7 @@ backend/
     db.py            engine/session, create tables, add new columns to existing DBs
     models.py        places, reels, visits
     maps_link.py     "Open in Google Maps" URL builder
+    backup.py        personal/my-log.json: export after every change, restore onto a fresh DB
     tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
     routers/         places.py, reels.py (review queue)
@@ -39,11 +40,13 @@ frontend/
     App.tsx          title bar (back button on review) + hash routing (#/ map, #/review) + stats
     mapUtils.ts      teardrop pin icons (food emoji per tag), cluster bubbles, overlap spreading, caption cleanup
     components/VisitLog.tsx  been-here toggle, star rating, visit date, notes, favorite button
+    components/TagEditor.tsx food tags + Edit: toggles, Save / Cancel / Reset to automatic
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     index.css        styles (CSS variables on :root)
     basemap.tsx      stripped-down vector basemap (see Frontend)
     pages/MapPage.tsx, ReviewPage.tsx
 data/                Muse exports (gitignored)
+personal/            my-log.json: your log, committed on purpose (see Personal data)
 ```
 
 ## How to run
@@ -89,6 +92,15 @@ Food tags are computed, not stored (`tags.place_tags`), from keyword regexes ove
 Prefer widening an existing tag's keywords over adding a new tag. Edits re-tag every place on the next request, except places whose tags were picked by hand (`places.tags_override`), which keep their pick until reset. Hand-picked tags must come from the same fixed list (`tags.TAG_ORDER`), so the filter row stays short.
 
 One place has many reels. The Google Maps link is computed (not stored) from name + address, falling back to lat/lng.
+
+## Personal data
+
+`personal/my-log.json` is the committed backup of everything you add by hand (been-here, visit date, rating, notes, favorite, hand-picked tags), written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`.
+- **All personal data in the repo goes under `personal/`, nowhere else.** The README's "Before making the repo public" steps rely on this to strip it in one go.
+- Places are keyed by their reels' post URLs, never database IDs, so a restore works after a fresh import.
+- Output is sorted with no timestamps, and the file is only rewritten when its content changes, so diffs show only real edits.
+- New per-place personal fields must be added to `backup._entry` and `backup.restore_log`, or they won't be backed up.
+- Tests patch `backup.LOG_PATH` to a temp dir (autouse fixture in `tests/conftest.py`); never let a test write the real file.
 
 ## Export format (Muse)
 

@@ -61,6 +61,25 @@ cd backend && pytest          # importer, flags and API
 cd frontend && npm run typecheck
 ```
 
+## To do
+
+**Using it**
+- [ ] Open it on a phone: reachable over home Wi-Fi and installable to the home screen
+- [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
+- [ ] Clean up place-card wording: trim captions to the dish (they repeat the name and address and are cut off at 140 characters), and drop the "exact address" label (only say when a location is approximate)
+
+**Data quality**
+- [ ] Clear the review queue: 2 multi-spot reels (Butter & Crumble, Deli Board) need their other spots added, and 4 reels have no venue
+- [ ] Pin sanity check: compare Muse's coordinates with OpenStreetMap's free geocoder and flag pins more than a few hundred metres from their address
+
+**Getting new reels in**
+- [ ] Import page: paste or drop a Muse export in the app and see the import summary there, without the command line
+- [ ] "Copy prompt for Muse" button that asks for reels saved since the last import, in the export format
+- [ ] "New" badge on places from the latest import
+- [ ] Accept JSON copied from a chat (inside a code block, or wrapped as `{"reels": [...]}`), still refusing anything else with the error's line and column
+- [ ] Muse handoff: have Muse push new saves somewhere the app picks up (a shared file, email or webhook). Depends on what Muse can do: run on a schedule, write outside the chat, tell which reels are new
+- [ ] Watch a folder (e.g. a synced Drive folder) and import new `reels*.json` automatically
+
 ## Privacy
 
 `data/*.json` (your exports), the SQLite database and `.env` are gitignored. Only code is committed.

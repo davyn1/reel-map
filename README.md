@@ -67,6 +67,7 @@ cd frontend && npm run typecheck
 - [ ] Open it on a phone: reachable over home Wi-Fi and installable to the home screen
 - [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
 - [ ] Clean up place-card wording: trim captions to the dish (they repeat the name and address and are cut off at 140 characters), and drop the "exact address" label (only say when a location is approximate)
+- [ ] Pick for me: one button that picks a random to-try place matching the current filters (e.g. Korean in Hayward) and flies to it
 
 **Data quality**
 - [ ] Clear the review queue: 2 multi-spot reels (Butter & Crumble, Deli Board) need their other spots added, and 4 reels have no venue
@@ -79,6 +80,15 @@ cd frontend && npm run typecheck
 - [ ] Accept JSON copied from a chat (inside a code block, or wrapped as `{"reels": [...]}`), still refusing anything else with the error's line and column
 - [ ] Muse handoff: have Muse push new saves somewhere the app picks up (a shared file, email or webhook). Depends on what Muse can do: run on a schedule, write outside the chat, tell which reels are new
 - [ ] Watch a folder (e.g. a synced Drive folder) and import new `reels*.json` automatically
+
+**Ideas**
+- [ ] Back up the Muse exports too: keep them under `personal/` so a restore on a new machine has everything it needs (the log alone needs the places re-imported first)
+- [ ] Friend mode: a "me / friend" switch with separate been-here, ratings and favorites, plus a "both want to go" filter (`visits.user` already supports it)
+- [ ] Food crawl planner: pick a few places, order them sensibly, and open one multi-stop Google Maps link
+- [ ] Which posters to trust: each poster's average rating across the places you've tried
+- [ ] Watch the reel in the app: Instagram's embed in the popup (test first; it can be unreliable)
+- [ ] Year in food: a stats page with places tried by cuisine, average rating, cities explored, saved vs. visited
+- [ ] "Closed" marking: hide permanently closed places without losing their history
 
 ## Personal data in this repo
 

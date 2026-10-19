@@ -91,6 +91,9 @@ cd frontend && npm run typecheck
 - [ ] Year in food: a stats page with places tried by cuisine, average rating, cities explored, saved vs. visited
 - [ ] "Closed" marking: hide permanently closed places without losing their history
 
+**Someday** (bigger ideas, not planned yet)
+- [ ] Trip maps beyond the Bay Area: named maps ("Bay Area", "Tokyo 2027") with a switcher, each built automatically around the restaurants saved in that area (or saved from the current map view), with per-map visits, favorites and Pick for me. Needs the Bay Area assumptions removed first: the `coords_outside_bay_area` flag, the review page's Bay Area check on new pins, the starting view and the title. Food tags may need per-region tuning (in Tokyo most places would just be "Japanese"). Pairs with Near me for "within 2 km of the hotel".
+
 ## Personal data in this repo
 
 The repo is private, and one folder of personal data is committed on purpose: `personal/my-log.json`. It holds what can't be rebuilt from a Muse export: been-here, visit dates, ratings, notes, favorites and hand-picked tags. The app rewrites it after every change; commit it like any other file. Places are matched by reel URL, so it can be restored onto a fresh database:

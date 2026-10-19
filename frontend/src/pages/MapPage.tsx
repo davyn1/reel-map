@@ -6,7 +6,8 @@ import { api, type Place, type Stats, type VisitUpdate } from "../api";
 import { MinimalBasemap } from "../basemap";
 import { TagEditor } from "../components/TagEditor";
 import { FavoriteButton, Stars, VisitLog } from "../components/VisitLog";
-import { cleanCaption, clusterIcon, pinClasses, pinIcon, placeIcon, spreadOverlaps, type Pin } from "../mapUtils";
+import { dishLine } from "../captions";
+import { clusterIcon, pinClasses, pinIcon, placeIcon, spreadOverlaps, type Pin } from "../mapUtils";
 
 const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 // Zoomed in this far, every pin shows on its own.
@@ -450,7 +451,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
       {places && shown.length === 0 && <p className="empty">No places match. Try clearing the search or filters.</p>}
       {listed.map(({ place }) => {
         const first = place.reels[0];
-        const caption = cleanCaption(first?.dish ?? null);
+        const caption = dishLine(first?.dish ?? null, { name: place.name, city: place.city });
         const more = place.reels.length - 1;
         return (
           <div
@@ -484,7 +485,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
               <div className="meta">
                 <span className={`dot ${place.visited ? "visited" : ""}`} />
                 {place.city && <span>{place.city}</span>}
-                <span>{place.is_approximate ? "approximate" : "exact address"}</span>
+                {place.is_approximate && <span>approximate location</span>}
                 {first?.posted_by && (
                   <span>
                     saved from @{first.posted_by}

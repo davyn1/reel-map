@@ -67,7 +67,7 @@ cd frontend && npm run typecheck
 **Using it**
 - [ ] Open it on a phone: reachable over home Wi-Fi and installable to the home screen
 - [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
-- [ ] Clean up place-card wording: trim captions to the dish (they repeat the name and address and are cut off at 140 characters), and drop the "exact address" label (only say when a location is approximate)
+- [x] Clean up place-card wording: trim captions to the dish (they repeat the name and address and are cut off at 140 characters), and drop the "exact address" label (only say when a location is approximate)
 - [x] Pick for me: one button that picks a random to-try place matching the current filters (e.g. Korean in Hayward) and flies to it
 
 **Data quality**

@@ -38,7 +38,8 @@ frontend/
   src/
     main.tsx         entry; imports Leaflet CSS
     App.tsx          title bar (back button on review) + hash routing (#/ map, #/review) + stats
-    mapUtils.ts      teardrop pin icons (food emoji per tag), cluster bubbles, overlap spreading, caption cleanup
+    mapUtils.ts      teardrop pin icons (food emoji per tag), cluster bubbles, overlap spreading
+    captions.ts      dishLine: reel caption → short "what to get" line for place cards
     components/VisitLog.tsx  been-here toggle, star rating, visit date, notes, favorite button
     components/TagEditor.tsx food tags + Edit: toggles, Save / Cancel / Reset to automatic
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
@@ -181,7 +182,7 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
   - the popup root stops click propagation: React handles popup clicks first (at the portal container), so a button that swaps itself out (Edit, Save tags, Cancel) is gone from the DOM by the time Leaflet checks whether the click came from the popup, and Leaflet would close it as a map click.
   - popup height is capped in CSS (`.popup`), not with Leaflet's `maxHeight`: Leaflet measures before React fills the popup. When the popup grows (tag editor opens, "Been here" adds the rating row) it calls `marker.getPopup().update()` so Leaflet re-pans to fit it in the map card.
   - popup: name + favorite star, address, food tags with "Edit" (toggles for all tags, Save / Cancel / "Reset to automatic"; "edited" badge when hand-picked), approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), reel links
-  - list of matching places, sortable by default (import order) / favorites first / top rated / recently visited: the same food emoji in a status-colored circle, name, cleaned caption (hashtags/📍 stripped, ALL CAPS → sentence case), tags, stars + visit date, notes, city, exact/approximate, "saved from @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
+  - list of matching places, sortable by default (import order) / favorites first / top rated / recently visited: the same food emoji in a status-colored circle, name, dish line (`captions.dishLine`: the caption cut at the first sign of location (📍, "in Hayward, CA", the place's own name, a street address, an @handle) or the end of the first sentence, dangling words and edge emoji dropped, ALL CAPS → sentence case, "…" only if Muse's 140-char snippet cut it mid-sentence), tags, stars + visit date, notes, city, "approximate location" (only on approximate places), "saved from @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).
 - Review page (`#/review`): one card per needs_review reel with venue, @poster reel link, Muse confidence/address/note, caption, flag badges (hover for description) and review_reason; filter by flag (with counts). "Fix" opens a panel:

@@ -191,6 +191,8 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ pin: Pin; nonce: number } | null>(null);
   const markers = useRef(new Map<number, LeafletMarker>()).current;
+  const [pick, setPick] = useState<{ name: string; fallback: boolean } | "none" | null>(null);
+  const lastPick = useRef<number | null>(null);
   const cluster = useRef<LeafletClusterGroup>(null);
 
   useEffect(() => {
@@ -248,6 +250,22 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
       setFlyTarget({ pin, nonce: Date.now() });
       document.querySelector(".map-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+  }
+
+  /** Random place from what's shown (search + filters), preferring ones you haven't been to;
+   * never the same place twice in a row. */
+  function pickForMe() {
+    const toTry = shown.filter(({ place }) => !place.visited);
+    const fallback = toTry.length === 0;
+    const pool = (fallback ? shown : toTry).filter(({ place }) => place.id !== lastPick.current || shown.length === 1);
+    if (pool.length === 0) {
+      setPick("none");
+      return;
+    }
+    const { place } = pool[Math.floor(Math.random() * pool.length)];
+    lastPick.current = place.id;
+    setPick({ name: place.name, fallback });
+    focus(place.id);
   }
 
   return (
@@ -308,6 +326,9 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
             ))}
           </select>
         </label>
+        <button className="pick-btn" onClick={pickForMe} title="Random place from what's shown, preferring ones you haven't tried">
+          🎲 Pick for me
+        </button>
       </div>
 
       <div className="tag-chips" role="group" aria-label="Food type">
@@ -335,6 +356,23 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
           <b className="legend-star">★</b> Favorite
         </span>
       </div>
+
+      {pick && (
+        <div className="pick-note" role="status">
+          {pick === "none" ? (
+            <span>Nothing to pick: no places match the search and filters.</span>
+          ) : (
+            <span>
+              🎲 Picked <b>{pick.name}</b>
+              {pick.fallback && <span className="muted"> (you've been to everything shown)</span>}
+            </span>
+          )}
+          {pick !== "none" && <button onClick={pickForMe}>Pick again</button>}
+          <button className="link-btn" onClick={() => setPick(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="error" role="alert">

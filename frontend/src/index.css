@@ -62,6 +62,14 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .tag-chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
 .tag-chip.on span { color: var(--surface-2); }
 .legend-star { color: var(--fav); font-size: 1rem; }
+.pick-btn { margin-left: auto; padding: 9px 16px; font-size: 0.95rem; font-weight: 600; background: var(--accent); border-color: var(--accent); color: #0d2a24; }
+.pick-note {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; padding: 10px 14px;
+  border-radius: 12px; background: rgba(46, 196, 166, 0.12); font-size: 0.92rem;
+}
+.pick-note > span:first-child { flex: 1; min-width: 180px; }
+.pick-note button { font-size: 0.82rem; padding: 4px 12px; }
+.pick-note .link-btn { padding: 0; }
 
 .search { position: relative; margin-bottom: 12px; }
 .search input { width: 100%; padding-left: 42px; }

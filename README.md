@@ -5,6 +5,7 @@ A personal map of Bay Area restaurants I've saved from Instagram food reels, wit
 Saved reels are exported by Meta's Muse AI as JSON, imported into SQLite, and shown on a dark, stripped-down map (land, water, freeways and city names) with a pin per restaurant showing a food icon (🌮 🍔 🍩 🦞…).
 
 - **Map:** coral pins are places to try, teal ones are places I've been. Dashed pins are approximate (pop-ups, home cooks, or places Muse could only place in a city). Crowded areas group into count bubbles that split as you zoom. Search by spot, dish or poster, filter by city, pin type or food type (about a dozen broad ones like Korean, Mexican, American, Seafood, Sweets & bakery, worked out from the captions), and tap a pin, or a place in the list below the map, for the address, an "Open in Google Maps" link and the reels that mention it.
+- **Pick for me:** can't decide? 🎲 picks a random place you haven't tried from whatever the search and filters show, flies to it and opens it. "Pick again" never repeats the last one.
 - **Visit log and favorites:** mark a place "been here", then give it 1–5 stars, the date you went and a note ("get the spicy wings"). Star places you most want to try. The list can sort by favorites, top rated or most recently visited.
 - **Review:** reels Muse couldn't place, or that cover several spots, wait here. Each shows what's missing from the export (flags like `no_venue` or `multi_spot`) and Muse's note. Fix one by dropping a pin on a small map or attaching it to an existing place, or reject it.
 
@@ -67,7 +68,7 @@ cd frontend && npm run typecheck
 - [ ] Open it on a phone: reachable over home Wi-Fi and installable to the home screen
 - [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
 - [ ] Clean up place-card wording: trim captions to the dish (they repeat the name and address and are cut off at 140 characters), and drop the "exact address" label (only say when a location is approximate)
-- [ ] Pick for me: one button that picks a random to-try place matching the current filters (e.g. Korean in Hayward) and flies to it
+- [x] Pick for me: one button that picks a random to-try place matching the current filters (e.g. Korean in Hayward) and flies to it
 
 **Data quality**
 - [ ] Clear the review queue: 2 multi-spot reels (Butter & Crumble, Deli Board) need their other spots added, and 4 reels have no venue

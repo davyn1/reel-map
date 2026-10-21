@@ -8,6 +8,7 @@ coordinates; nothing calls an external API.
 """
 
 import argparse
+from datetime import datetime, timezone
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -26,7 +27,7 @@ from app.importer.matching import (
     normalize_name,
 )
 from app.importer.parse import ExportParseError, RawReel, find_export_files, load_file
-from app.models import Place, Reel
+from app.models import ImportRun, Place, Reel
 
 # Flags that mean the row can't be put on the map at all.
 BLOCKING_FLAGS = ("no_venue", "no_coords", "coords_outside_bay_area", "no_confidence")
@@ -43,6 +44,14 @@ class Summary:
     merged: int = 0
     flags: Counter = field(default_factory=Counter)
     skipped_details: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict:
+        return {
+            "imported": self.imported, "pinned": self.pinned, "approximate": self.approximate,
+            "needs_review": self.needs_review, "pinned_needing_review": self.pinned_needing_review,
+            "skipped": self.skipped, "merged": self.merged, "flags": dict(self.flags),
+            "skipped_details": self.skipped_details,
+        }
 
     def print(self) -> None:
         print(f"imported:      {self.imported}")
@@ -176,6 +185,18 @@ def run(paths, session: Session) -> Summary:
     return importer.summary
 
 
+def record_run(session: Session, source: str, filename: str | None, summary: Summary | None = None,
+               error: str | None = None) -> ImportRun:
+    run_row = ImportRun(created_at=datetime.now(timezone.utc).replace(tzinfo=None), source=source, filename=filename,
+                        ok=error is None, error=error)
+    if summary is not None:
+        for key in ("imported", "pinned", "approximate", "needs_review", "skipped", "merged"):
+            setattr(run_row, key, getattr(summary, key))
+    session.add(run_row)
+    session.commit()
+    return run_row
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("file", nargs="?", help="one export file (default: every data/reels*.json)")
@@ -189,11 +210,14 @@ def main(argv=None) -> int:
 
     init_db()
     with SessionLocal() as session:
+        names = ", ".join(p.name for p in paths)
         try:
             summary = run(paths, session)
         except ExportParseError as e:
+            record_run(session, "cli", names, error=str(e))
             print(f"PARSE ERROR {e}\nNothing was imported.")
             return 1
+        record_run(session, "cli", names, summary)
     print(f"Imported from {', '.join(p.name for p in paths)}")
     summary.print()
     return 0

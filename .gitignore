@@ -5,6 +5,7 @@
 
 # Muse exports (personal data)
 data/*.json
+data/*.invalid
 
 # SQLite
 *.db

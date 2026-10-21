@@ -75,6 +75,8 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .pick-note button { font-size: 0.82rem; padding: 4px 12px; }
 .pick-note .link-btn { padding: 0; }
 
+.last-import { margin: -4px 0 12px; font-size: 0.8rem; color: var(--muted); }
+.last-import.failed { color: var(--danger); }
 .search { position: relative; margin-bottom: 12px; }
 .search input { width: 100%; padding-left: 42px; }
 .search svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--muted); }

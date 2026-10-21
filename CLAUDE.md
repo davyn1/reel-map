@@ -27,7 +27,7 @@ backend/
     users.py         CLI: add / passwd / list / remove accounts (no sign-up page)
     tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
-    routers/         auth.py (login/logout/me), places.py, reels.py (review queue)
+    routers/         auth.py (login/logout/me), imports.py (Muse upload, recent imports), places.py, reels.py (review queue)
     importer/
       parse.py       load export files; "" and null -> None
       flags.py       per-reel flags
@@ -90,6 +90,7 @@ Settings come from environment variables (or `.env`), so the hosted server can p
 | `FOOD_MAP_PERSONAL_DIR` | `personal/` | where `my-log.json` is written |
 | `FOOD_MAP_FRONTEND_DIST` | `frontend/dist/` | built map served at `/` |
 | `FOOD_MAP_CORS_ORIGINS` | the Vite dev origins | comma-separated |
+| `FOOD_MAP_IMPORT_TOKEN` | unset (token uploads off) | secret Muse sends as `Authorization: Bearer …` to `POST /api/import`; set it as a host secret, never commit it |
 | `FOOD_MAP_COOKIE_SECURE` | `true` | login cookie only over https; set `false` in `.env` for plain-http local use in browsers other than Chrome |
 
 `GET /api/health` returns `{"status": "ok"}`.
@@ -105,6 +106,7 @@ To start over, delete `backend/food_map.db` and re-run the import.
 - **reel_extra_places**: reel_id, place_id. Extra spots for multi-spot reels; `reels.place_id` stays the reel's main place.
 - **visits**: id, place_id, user (= `users.username`), visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Notes and favorite don't require a visit. Before logins existed `user` was `"me"`; the first account created takes those rows over.
 - **users**: id, username (unique, lowercase), display_name, password_hash (`scrypt$n$r$p$salt$hash`), created_at. Made with `python -m app.users`; there is no sign-up page.
+- **import_runs** (`ImportRun`): id, created_at, source (`upload` / `cli`), filename (with "(from muse)" / "(from <username>)"), ok, error, imported, pinned, approximate, needs_review, skipped, merged. Every import, uploaded or command-line, adds one.
 - **sessions** (`LoginSession`): id, token_hash (SHA-256 of the cookie token; the raw token is never stored), user_id, created_at, expires_at (60 days).
 
 Schema changes: `create_all` only creates missing tables, so a column added to an existing table must also be listed in `db._ADDED_COLUMNS`; `init_db` adds it with `ALTER TABLE` and keeps the data.
@@ -132,6 +134,8 @@ JSON array of objects with keys: venue, address, city, lat, lng, post_url, poste
 
 - Missing values may be `null` or `""`: treat both as unknown. Strip whitespace on every string.
 - Tolerate missing or extra keys. A row without post_url is skipped and counted.
+- Top level is a JSON array, or `{"reels": [...]}` (accepted explicitly; nothing else is).
+- `post_url` is normalized on import (`parse.normalize_post_url`) to `https://www.instagram.com/reel/<id>/`: `/p/`, `/reels/`, `/tv/`, a username prefix and any query string (`?igsh=`) all map to the same reel, since `post_url` is the dedup key.
 - If a file fails to parse, report file, line and column (from `JSONDecodeError`) and stop. Never guess or partially repair. With several files, all are parsed before anything is written.
 - confidence: `high` | `medium` | `low` | `none`.
 - `dish` is a caption snippet cut at 140 chars; it can contain emoji and curly quotes (’).
@@ -178,6 +182,7 @@ Where to see flags:
 - Login sets an HttpOnly, SameSite=Lax cookie `yums_session` (Secure unless `FOOD_MAP_COOKIE_SECURE=false`), valid 60 days. Logout deletes the session server-side. Changing a password (`app.users passwd`) logs out every device.
 - Wrong passwords: 5 for one username locks it for 15 minutes (`auth.LoginThrottle`, in memory). Unknown usernames get the same "Wrong username or password." error.
 - Visits are per person (the logged-in username); each place also carries `others[]`, the other person's log (only if they logged something). Hand-picked food tags and review-queue actions are shared.
+- Tests patch `routers.imports.DATA_DIR` to a temp dir (autouse fixture), so uploads never land in the real `data/`.
 - Tests set `FOOD_MAP_COOKIE_SECURE=false` (conftest) and log in as test users `alice` / `bob` (`tests/test_api.py`). For browser checks, use a throwaway copy of the database with test accounts, never the real one.
 
 ## API (phase 1)
@@ -186,6 +191,8 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 
 - `POST /api/auth/login` `{"username", "password"}` → sets the cookie, returns `{username, display_name}`; 401 wrong login, 429 locked out
 - `POST /api/auth/logout` (204), `GET /api/auth/me` → `{username, display_name}` or 401
+- `POST /api/import` — Muse's upload: body is the export JSON. Auth: `Authorization: Bearer <FOOD_MAP_IMPORT_TOKEN>` (503 if no token is configured, 401 if wrong) or a logged-in session. Saves the body as `data/reels-upload-<UTC time>-<random>.json` first, then runs the normal import (known reels skipped). Returns `{saved_as, imported, pinned, approximate, needs_review, pinned_needing_review, skipped, merged, flags, skipped_details}`. 400 with line/column on bad JSON (file kept as `.invalid`), 413 over 5 MB, 409 if an import is already running.
+- `GET /api/imports?limit=` — recent import runs, newest first (login required)
 
 - `GET /api/places` — every place (in import order) with `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
 - `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`, and the logged-in person's own `visited`, `favorites`
@@ -212,6 +219,7 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
 - Map page, top to bottom:
   - stat chips from `GET /api/stats` (reels saved, on the map, cities; "been there" and "favorites" toggle the matching pin filter; waiting for review → `#/review`)
   - "🎲 Pick for me" (end of the filter row, `pickForMe`): random place from what's shown, preferring not-visited ones (falls back to visited if that's all that's shown), never the same place twice in a row; flies to it via `focus` and shows a "Picked … · Pick again · Dismiss" note above the map, or "Nothing to pick" when no places are shown
+  - "Last import <when> · N new (M to review)" line under the chips, from `GET /api/imports?limit=1` (red if it failed)
   - search (name, city, address, tags, notes, caption, poster; every word must match), City and Pins filters (to try / been here / favorites / both want to go (you and the other person both starred it) / exact / approximate), and a horizontally scrolling row of food-tag chips (single select, with counts); changing a filter refits the map
   - legend, then the map card: teardrop pins (`L.divIcon`) showing a food emoji for the place's first tag (`mapUtils.TAG_ICONS`, 🍽️ if untagged), ★ badge on favorites. No numbers on pins: they read like a ranking. Only cluster bubbles show a count. `GET /api/places` still returns import order (by id), used as the list's "Default" order.
   - clustering (`react-leaflet-cluster`): crowded pins merge into count bubbles (coral; teal when every place inside is visited) below zoom 14 (`NO_CLUSTER_ZOOM`). The cluster plugin needs `maxZoom` on `MapContainer`, since the vector basemap doesn't set one. `removeOutsideVisibleBounds` is off: with it on, the plugin drops markers after a pan, and removing a marker closes its popup.

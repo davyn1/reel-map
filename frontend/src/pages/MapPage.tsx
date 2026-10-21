@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type { LatLngBoundsExpression, Marker as LeafletMarker, MarkerClusterGroup as LeafletClusterGroup } from "leaflet";
-import { api, type Place, type Stats, type VisitUpdate } from "../api";
+import { api, type ImportRun, type Place, type Stats, type VisitUpdate } from "../api";
 import { MinimalBasemap } from "../basemap";
 import { TagEditor } from "../components/TagEditor";
 import { FavoriteButton, FriendLines, Stars, VisitLog } from "../components/VisitLog";
@@ -69,6 +69,22 @@ function sortBy(items: Numbered[], key: SortKey): Numbered[] {
   if (key === "recent")
     out.sort((a, b) => (b.place.visited_date ?? "").localeCompare(a.place.visited_date ?? "") || a.number - b.number);
   return out;
+}
+
+/** "Last import Oct 21, 9:02 PM · 3 new (1 to review)" or the failure, for the line under the chips. */
+function LastImport({ run }: { run: ImportRun | null }) {
+  if (!run) return null;
+  const when = new Date(run.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const what = !run.ok
+    ? `failed: ${run.error ?? "unknown error"}`
+    : run.imported === 0
+      ? "nothing new"
+      : `${run.imported} new${run.needs_review ? ` (${run.needs_review} to review)` : ""}`;
+  return (
+    <p className={`last-import${run.ok ? "" : " failed"}`} title={run.filename ?? undefined}>
+      Last import {when} · {what}
+    </p>
+  );
 }
 
 function formatDate(iso: string | null): string | null {
@@ -186,6 +202,7 @@ function SearchIcon() {
 export default function MapPage({ stats, onChanged }: { stats: Stats | null; onChanged: () => void }) {
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [allTags, setAllTags] = useState<string[]>([]);
+  const [lastImport, setLastImport] = useState<ImportRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
@@ -202,6 +219,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
   useEffect(() => {
     api.places().then(setPlaces).catch((e) => setError(String(e)));
     api.tags().then(setAllTags).catch(() => setAllTags([]));
+    api.recentImports(1).then((runs) => setLastImport(runs[0] ?? null)).catch(() => setLastImport(null));
   }, []);
 
   // Import order, kept as the default list order and as the tiebreak for other sorts. Not shown.
@@ -296,6 +314,8 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
           </a>
         )}
       </div>
+
+      <LastImport run={lastImport} />
 
       <div className="search">
         <SearchIcon />

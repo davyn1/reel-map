@@ -17,6 +17,20 @@ export interface FriendVisit {
   favorite: boolean;
 }
 
+export interface ImportRun {
+  at: string; // ISO time, UTC
+  source: "upload" | "cli";
+  filename: string | null;
+  ok: boolean;
+  error: string | null;
+  imported: number;
+  pinned: number;
+  approximate: number;
+  needs_review: number;
+  skipped: number;
+  merged: number;
+}
+
 export interface Me {
   username: string;
   display_name: string;
@@ -132,6 +146,7 @@ export const api = {
       body: JSON.stringify(update),
     }),
   stats: () => request<Stats>("/api/stats"),
+  recentImports: (limit = 1) => request<ImportRun[]>(`/api/imports?limit=${limit}`),
   tags: () => request<string[]>("/api/tags"),
   /** Pick a place's tags by hand, or pass null to go back to the automatic ones. */
   setTags: (placeId: number, tags: string[] | null) =>

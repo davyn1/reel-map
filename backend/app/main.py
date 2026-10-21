@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import CORS_ORIGINS, FRONTEND_DIST
 from app.db import init_db
-from app.routers import auth, places, reels
+from app.routers import auth, imports, places, reels
 
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth.router)
+app.include_router(imports.router)
 app.include_router(places.router)
 app.include_router(reels.router)
 

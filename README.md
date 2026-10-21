@@ -58,6 +58,19 @@ Re-running the import only adds reels it hasn't seen (matched by post URL), so n
 
 To start over, delete `backend/food_map.db` and import again.
 
+### Uploading instead (how Muse sends exports)
+
+The app also accepts an export over HTTP, so Muse can send its daily file directly once the app is online:
+
+```bash
+curl -X POST https://<your-app>/api/import \
+     -H "Authorization: Bearer $FOOD_MAP_IMPORT_TOKEN" \
+     -H "Content-Type: application/json" \
+     --data-binary @reels.json
+```
+
+`FOOD_MAP_IMPORT_TOKEN` is a long random secret set on the server (and given only to Muse); without it, token uploads are off. Each upload is saved in `data/` before it's imported, reels already on the map are skipped, and the map shows when the last import happened and what it added.
+
 ## Run
 
 Two terminals:

@@ -100,3 +100,22 @@ class LoginSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime)
 
     user: Mapped[User] = relationship(back_populates="sessions")
+
+
+class ImportRun(Base):
+    """One import: a Muse upload or a command-line run. Shown as "Last import: …" in the app."""
+
+    __tablename__ = "import_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    source: Mapped[str] = mapped_column(String)  # "upload" | "cli"
+    filename: Mapped[str | None] = mapped_column(String)
+    ok: Mapped[bool] = mapped_column(Boolean)
+    error: Mapped[str | None] = mapped_column(Text)
+    imported: Mapped[int] = mapped_column(Integer, default=0)
+    pinned: Mapped[int] = mapped_column(Integer, default=0)
+    approximate: Mapped[int] = mapped_column(Integer, default=0)
+    needs_review: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, default=0)
+    merged: Mapped[int] = mapped_column(Integer, default=0)

@@ -24,6 +24,16 @@ def log_in_tmp(tmp_path, monkeypatch):
     return path
 
 
+@pytest.fixture(autouse=True)
+def uploads_in_tmp(tmp_path, monkeypatch):
+    """Never let tests write uploaded exports into the real data/ folder."""
+    from app.routers import imports
+
+    folder = tmp_path / "uploads"
+    monkeypatch.setattr(imports, "DATA_DIR", folder)
+    return folder
+
+
 @pytest.fixture
 def session():
     engine = create_engine("sqlite://")

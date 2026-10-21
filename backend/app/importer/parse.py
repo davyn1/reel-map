@@ -6,6 +6,7 @@ we never try to repair it.
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,6 +60,20 @@ def clean_float(value) -> float | None:
         return None
 
 
+# instagram.com/reel/ID, /reels/ID, /p/ID, /tv/ID, optionally under a username, with any query string.
+_IG_POST = re.compile(r"^https?://(?:www\.)?instagram\.com/(?:[\w.]+/)?(?:reels?|p|tv)/([\w-]+)", re.IGNORECASE)
+
+
+def normalize_post_url(url: str) -> str:
+    """One canonical form per reel, since post_url is the dedup key: https://www.instagram.com/reel/<id>/.
+
+    "…/p/ABC/?igsh=x" and "…/reel/ABC" are the same reel; without this a re-export that formats
+    links differently would import every reel twice. Non-Instagram URLs are left as they are.
+    """
+    m = _IG_POST.match(url.strip())
+    return f"https://www.instagram.com/reel/{m.group(1)}/" if m else url.strip()
+
+
 def find_export_files(path: str | Path | None = None) -> list[Path]:
     if path is not None:
         return [Path(path)]
@@ -71,8 +86,11 @@ def load_file(path: Path) -> ParsedFile:
         data = json.loads(text)
     except json.JSONDecodeError as e:
         raise ExportParseError(f"{path}: line {e.lineno}, column {e.colno}: {e.msg}") from e
+    # Also accept {"reels": [...]} (how some tools wrap a list); anything else is refused, not guessed at.
+    if isinstance(data, dict) and isinstance(data.get("reels"), list):
+        data = data["reels"]
     if not isinstance(data, list):
-        raise ExportParseError(f"{path}: expected a JSON array at the top level, got {type(data).__name__}")
+        raise ExportParseError(f"{path}: expected a JSON array (or {{\"reels\": [...]}}) at the top level, got {type(data).__name__}")
 
     parsed = ParsedFile(path=path)
     for i, item in enumerate(data):
@@ -89,5 +107,6 @@ def load_file(path: Path) -> ParsedFile:
         if not reel.post_url:
             parsed.skipped.append((i, f"no post_url (venue: {reel.venue or '?'})"))
             continue
+        reel.post_url = normalize_post_url(reel.post_url)
         parsed.reels.append(reel)
     return parsed

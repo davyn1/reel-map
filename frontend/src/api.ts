@@ -8,6 +8,23 @@ export interface ReelBrief {
   status: string;
 }
 
+export interface FriendVisit {
+  username: string;
+  display_name: string;
+  visited: boolean;
+  rating: number | null;
+  notes: string | null;
+  favorite: boolean;
+}
+
+export interface Me {
+  username: string;
+  display_name: string;
+}
+
+/** Fired when the server says the login has expired or is missing; App shows the login screen. */
+export const AUTH_REQUIRED_EVENT = "auth-required";
+
 export interface Place {
   id: number;
   name: string;
@@ -24,6 +41,7 @@ export interface Place {
   rating: number | null; // 1-5
   notes: string | null;
   favorite: boolean;
+  others: FriendVisit[]; // the other person's log for this place (friend mode)
   reels: ReelBrief[];
 }
 
@@ -86,6 +104,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
+  if (res.status === 401 && !path.startsWith("/api/auth/")) {
+    window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -95,10 +116,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(`${res.status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
 export const api = {
+  me: () => request<Me>("/api/auth/me"),
+  login: (username: string, password: string) =>
+    request<Me>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   places: () => request<Place[]>("/api/places"),
   updateVisit: (placeId: number, update: VisitUpdate) =>
     request<Place>(`/api/places/${placeId}/visit`, {

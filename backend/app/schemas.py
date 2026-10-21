@@ -12,6 +12,17 @@ class ReelBrief(BaseModel):
     status: str
 
 
+class FriendVisitOut(BaseModel):
+    """Someone else's log for a place (friend mode). Only people who logged something appear."""
+
+    username: str
+    display_name: str
+    visited: bool
+    rating: int | None
+    notes: str | None
+    favorite: bool
+
+
 class PlaceOut(BaseModel):
     id: int
     name: str
@@ -28,6 +39,7 @@ class PlaceOut(BaseModel):
     rating: int | None
     notes: str | None
     favorite: bool
+    others: list[FriendVisitOut]
     reels: list[ReelBrief]
 
 

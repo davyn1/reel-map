@@ -219,6 +219,30 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 }
 .error button { margin-left: auto; }
 
+/* ---------- login + account ---------- */
+.login-page { max-width: 360px; margin: 12vh auto 0; text-align: center; }
+.login-icon { border-radius: 22px; }
+.login-page h1 { font-size: 1.4rem; margin: 14px 0 22px; }
+.login-form { display: grid; gap: 14px; text-align: left; }
+.login-form label { display: grid; gap: 6px; color: var(--muted); font-size: 0.9rem; }
+.login-form input { width: 100%; }
+.login-form button { padding: 12px; font-size: 1rem; }
+.login-error { margin: 0; color: var(--danger); font-size: 0.9rem; }
+
+.user-menu { position: relative; }
+.icon-btn.avatar { font-size: 1.05rem; font-weight: 700; background: var(--visited); color: #0d2a24; cursor: pointer; }
+.menu {
+  position: absolute; right: 0; top: 52px; z-index: 1000; min-width: 190px; padding: 8px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.menu-name { padding: 6px 8px 10px; color: var(--muted); font-size: 0.85rem; }
+.menu button { width: 100%; text-align: left; border-radius: 10px; }
+
+.friend-lines { display: grid; gap: 2px; margin: 4px 0 8px; font-size: 0.85rem; color: var(--muted); }
+.friend-lines b { color: var(--text); font-weight: 600; }
+.friend-lines.compact { margin: 0 0 6px; font-size: 0.8rem; }
+.friend-notes { font-style: italic; }
+
 /* ---------- review page ---------- */
 .review-toolbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
 .review-toolbar h2 { margin: 0; font-size: 1.15rem; }

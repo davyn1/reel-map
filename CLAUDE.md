@@ -1,6 +1,6 @@
 # food-map
 
-Personal Bay Area restaurant map built from saved Instagram food reels. A tracker/checklist for one user (maybe one friend), not a public app.
+Personal Bay Area restaurant map built from saved Instagram food reels. A tracker/checklist for two people (the owner and one friend), each with their own login and log; not a public app. Being moved online (Fly.io) so it works on a phone with the PC off.
 
 Flow: Instagram saved reels → exported by Meta's Muse AI as JSON (`data/reels*.json`) → CLI import → SQLite → FastAPI → React + Leaflet map.
 
@@ -23,9 +23,11 @@ backend/
     models.py        places, reels, visits
     maps_link.py     "Open in Google Maps" URL builder
     backup.py        personal/my-log.json: export after every change, restore onto a fresh DB
+    auth.py          password hashing (scrypt), session cookies, require_user, login lockout
+    users.py         CLI: add / passwd / list / remove accounts (no sign-up page)
     tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
-    routers/         places.py, reels.py (review queue)
+    routers/         auth.py (login/logout/me), places.py, reels.py (review queue)
     importer/
       parse.py       load export files; "" and null -> None
       flags.py       per-reel flags
@@ -45,7 +47,7 @@ frontend/
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     index.css        styles (CSS variables on :root)
     basemap.tsx      stripped-down vector basemap (see Frontend)
-    pages/MapPage.tsx, ReviewPage.tsx
+    pages/MapPage.tsx, ReviewPage.tsx, LoginPage.tsx
   public/            manifest.webmanifest + app icons (home-screen install)
   index.html         install tags (manifest, theme-color, apple-* for iPhone)
 data/                Muse exports (gitignored)
@@ -62,6 +64,8 @@ python -m app.importer.run                 # imports every data/reels*.json
 python -m app.importer.run ../data/reels.json   # or one file
 python -m app.importer.check               # list reels by flag; no DB writes
 python -m app.importer.check --flag no_street_address
+python -m app.users add davy --name "Davy"   # make a login (asks for the password); first one takes over pre-login visits
+python -m app.users list
 uvicorn app.main:app --reload              # API on :8000
 
 # frontend (from frontend/)
@@ -86,6 +90,7 @@ Settings come from environment variables (or `.env`), so the hosted server can p
 | `FOOD_MAP_PERSONAL_DIR` | `personal/` | where `my-log.json` is written |
 | `FOOD_MAP_FRONTEND_DIST` | `frontend/dist/` | built map served at `/` |
 | `FOOD_MAP_CORS_ORIGINS` | the Vite dev origins | comma-separated |
+| `FOOD_MAP_COOKIE_SECURE` | `true` | login cookie only over https; set `false` in `.env` for plain-http local use in browsers other than Chrome |
 
 `GET /api/health` returns `{"status": "ok"}`.
 
@@ -98,7 +103,9 @@ To start over, delete `backend/food_map.db` and re-run the import.
 - **places**: id, name, lat, lng, address, is_approximate (bool), tags_override (JSON list or null: hand-picked food tags; null = automatic)
 - **reels**: id, post_url (unique; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file
 - **reel_extra_places**: reel_id, place_id. Extra spots for multi-spot reels; `reels.place_id` stays the reel's main place.
-- **visits**: id, place_id, user, visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Single-user for now: `user` is `"me"`. Notes and favorite don't require a visit.
+- **visits**: id, place_id, user (= `users.username`), visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Notes and favorite don't require a visit. Before logins existed `user` was `"me"`; the first account created takes those rows over.
+- **users**: id, username (unique, lowercase), display_name, password_hash (`scrypt$n$r$p$salt$hash`), created_at. Made with `python -m app.users`; there is no sign-up page.
+- **sessions** (`LoginSession`): id, token_hash (SHA-256 of the cookie token; the raw token is never stored), user_id, created_at, expires_at (60 days).
 
 Schema changes: `create_all` only creates missing tables, so a column added to an existing table must also be listed in `db._ADDED_COLUMNS`; `init_db` adds it with `ALTER TABLE` and keeps the data.
 
@@ -112,7 +119,7 @@ One place has many reels. The Google Maps link is computed (not stored) from nam
 
 ## Personal data
 
-`personal/my-log.json` is the committed backup of everything you add by hand (been-here, visit date, rating, notes, favorite, hand-picked tags), written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`.
+`personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 2: `users.<username>.places[]` (been-here, visit date, rating, notes, favorite) plus a shared `tags[]` (hand-picked tags). Version-1 files (before logins, one person) still restore, into `--user` (default: the first account).
 - **All personal data in the repo goes under `personal/`, nowhere else.** The README's "Before making the repo public" steps rely on this to strip it in one go.
 - Places are keyed by their reels' post URLs, never database IDs, so a restore works after a fresh import.
 - Output is sorted with no timestamps, and the file is only rewritten when its content changes, so diffs show only real edits.
@@ -165,12 +172,23 @@ Where to see flags:
 - Import summary: count per flag.
 - Review page: each reel shows its flags as badges, with a filter by flag.
 
+## Logins and friend mode
+
+- Every `/api/*` route needs a login (`auth.require_user`, set on the `places` and `reels` routers), except `GET /api/health` and `POST /api/auth/login`. Anything new under `/api/` must stay behind it.
+- Login sets an HttpOnly, SameSite=Lax cookie `yums_session` (Secure unless `FOOD_MAP_COOKIE_SECURE=false`), valid 60 days. Logout deletes the session server-side. Changing a password (`app.users passwd`) logs out every device.
+- Wrong passwords: 5 for one username locks it for 15 minutes (`auth.LoginThrottle`, in memory). Unknown usernames get the same "Wrong username or password." error.
+- Visits are per person (the logged-in username); each place also carries `others[]`, the other person's log (only if they logged something). Hand-picked food tags and review-queue actions are shared.
+- Tests set `FOOD_MAP_COOKIE_SECURE=false` (conftest) and log in as test users `alice` / `bob` (`tests/test_api.py`). For browser checks, use a throwaway copy of the database with test accounts, never the real one.
+
 ## API (phase 1)
 
 Interactive docs at http://localhost:8000/docs while the server runs.
 
-- `GET /api/places` — every place (in import order) with `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
-- `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`, `visited`, `favorites`
+- `POST /api/auth/login` `{"username", "password"}` → sets the cookie, returns `{username, display_name}`; 401 wrong login, 429 locked out
+- `POST /api/auth/logout` (204), `GET /api/auth/me` → `{username, display_name}` or 401
+
+- `GET /api/places` — every place (in import order) with `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
+- `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`, and the logged-in person's own `visited`, `favorites`
 - `POST /api/places/{id}/visit` — partial update of the visit log: any of `visited`, `visited_date`, `rating` (1–5), `notes`, `favorite`; only fields sent change, `null` clears rating/notes/date. `visited` takes the desired state rather than flipping, so a double click can't undo itself. Turning it on stamps today's date (unless one is sent); turning it off clears date and rating but keeps notes and favorite.
 - `GET /api/tags` — every food tag, in display order
 - `PUT /api/places/{id}/tags` `{"tags": [...]}` — pick a place's tags by hand (any subset of `GET /api/tags`, deduped and sorted; 422 on unknown tags), or `{"tags": null}` to go back to automatic. Places carry `tags_edited`.
@@ -190,16 +208,17 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
 - Phone first: it's mostly used on the go. Installable to the home screen (`public/manifest.webmanifest`, "Yums Map", standalone, icons rendered from an HTML pin to PNG). Full-screen on iPhone runs under the status bar, so `.app` pads with `env(safe-area-inset-*)`. Under 600px: inputs are 16px (iOS zooms on smaller), bigger tap targets, full-width Pick for me. Check layouts at 390×844.
 - Look: dark theme modelled on a Muse-drafted mockup ("Bay Area Yums Map"). Colors are CSS variables on `:root` in `index.css`: coral `--todo` = to try, teal `--visited` = been here, dashed outline = approximate.
 - Basemap (`basemap.tsx`): fetches OpenFreeMap's Positron style, recolors it with the dark `PALETTE`, and keeps only background, water, freeways (motorway incl. bridges/tunnels), trunk highways, US/interstate route shields, water names, and city/town labels. Everything else (buildings, minor roads, parks, rail, airports, boundaries, POIs) is dropped. To show more or less, edit the `KEEP` set; layer ids are from the Positron style. Falls back to OSM raster tiles if the style can't load.
+- Login screen (`LoginPage`) whenever `GET /api/auth/me` fails or any call returns 401 (`api.ts` fires `AUTH_REQUIRED_EVENT`). Title bar: avatar with your initial → "Logged in as …" / Log out.
 - Map page, top to bottom:
   - stat chips from `GET /api/stats` (reels saved, on the map, cities; "been there" and "favorites" toggle the matching pin filter; waiting for review → `#/review`)
   - "🎲 Pick for me" (end of the filter row, `pickForMe`): random place from what's shown, preferring not-visited ones (falls back to visited if that's all that's shown), never the same place twice in a row; flies to it via `focus` and shows a "Picked … · Pick again · Dismiss" note above the map, or "Nothing to pick" when no places are shown
-  - search (name, city, address, tags, notes, caption, poster; every word must match), City and Pins filters (to try / been here / favorites / exact / approximate), and a horizontally scrolling row of food-tag chips (single select, with counts); changing a filter refits the map
+  - search (name, city, address, tags, notes, caption, poster; every word must match), City and Pins filters (to try / been here / favorites / both want to go (you and the other person both starred it) / exact / approximate), and a horizontally scrolling row of food-tag chips (single select, with counts); changing a filter refits the map
   - legend, then the map card: teardrop pins (`L.divIcon`) showing a food emoji for the place's first tag (`mapUtils.TAG_ICONS`, 🍽️ if untagged), ★ badge on favorites. No numbers on pins: they read like a ranking. Only cluster bubbles show a count. `GET /api/places` still returns import order (by id), used as the list's "Default" order.
   - clustering (`react-leaflet-cluster`): crowded pins merge into count bubbles (coral; teal when every place inside is visited) below zoom 14 (`NO_CLUSTER_ZOOM`). The cluster plugin needs `maxZoom` on `MapContainer`, since the vector basemap doesn't set one. `removeOutsideVisibleBounds` is off: with it on, the plugin drops markers after a pan, and removing a marker closes its popup.
   - the popup root stops click propagation: React handles popup clicks first (at the portal container), so a button that swaps itself out (Edit, Save tags, Cancel) is gone from the DOM by the time Leaflet checks whether the click came from the popup, and Leaflet would close it as a map click.
   - popup height is capped in CSS (`.popup`), not with Leaflet's `maxHeight`: Leaflet measures before React fills the popup. When the popup grows (tag editor opens, "Been here" adds the rating row) it calls `marker.getPopup().update()` so Leaflet re-pans to fit it in the map card.
-  - popup: name + favorite star, address, food tags with "Edit" (toggles for all tags, Save / Cancel / "Reset to automatic"; "edited" badge when hand-picked), approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), reel links
-  - list of matching places, sortable by default (import order) / favorites first / top rated / recently visited: the same food emoji in a status-colored circle, name, dish line (`captions.dishLine`: the caption cut at the first sign of location (📍, "in Hayward, CA", the place's own name, a street address, an @handle) or the end of the first sentence, dangling words and edge emoji dropped, ALL CAPS → sentence case, "…" only if Muse's 140-char snippet cut it mid-sentence), tags, stars + visit date, notes, city, "approximate location" (only on approximate places), "saved from @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
+  - popup: name + favorite star, address, food tags with "Edit" (toggles for all tags, Save / Cancel / "Reset to automatic"; "edited" badge when hand-picked), approximate note, "Open in Google Maps", visit log (been-here toggle; once visited, 1–5 stars and visit date; notes box that saves on blur), the other person's line ("Tess: ★ wants to go · been ★★★★ “notes”"), reel links
+  - list of matching places, sortable by default (import order) / favorites first / top rated / recently visited: the same food emoji in a status-colored circle, name, dish line (`captions.dishLine`: the caption cut at the first sign of location (📍, "in Hayward, CA", the place's own name, a street address, an @handle) or the end of the first sentence, dangling words and edge emoji dropped, ALL CAPS → sentence case, "…" only if Muse's 140-char snippet cut it mid-sentence), tags, stars + visit date, notes, the other person's line (no notes), city, "approximate location" (only on approximate places), "saved from @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).
 - Review page (`#/review`): one card per needs_review reel with venue, @poster reel link, Muse confidence/address/note, caption, flag badges (hover for description) and review_reason; filter by flag (with counts). "Fix" opens a panel:
@@ -213,4 +232,4 @@ Testing note: the Claude browser pane does not run `requestAnimationFrame` while
 
 ## Out of scope (for now)
 
-Auth, multiple users, deployment, Google Places verification.
+Public sign-up, more than a couple of users, Google Places verification. (Logins for two people are in; deployment is in progress: see the README to-do list.)

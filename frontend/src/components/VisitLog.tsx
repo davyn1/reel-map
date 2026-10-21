@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Place, VisitUpdate } from "../api";
+import type { FriendVisit, Place, VisitUpdate } from "../api";
 
 export function Stars({ rating }: { rating: number | null }) {
   if (!rating) return null;
@@ -92,6 +92,27 @@ export function VisitLog({ place, onUpdate }: { place: Place; onUpdate: (u: Visi
         maxLength={2000}
       />
       {saved && <span className="saved">Saved</span>}
+    </div>
+  );
+}
+
+/** "Alex: wants to go · been ★★★★ · “get the wings”" for each other person who logged this place. */
+export function FriendLines({ others, compact = false }: { others: FriendVisit[]; compact?: boolean }) {
+  if (others.length === 0) return null;
+  return (
+    <div className={`friend-lines${compact ? " compact" : ""}`}>
+      {others.map((o) => (
+        <div key={o.username} className="friend-line">
+          <b>{o.display_name}:</b>{" "}
+          {[
+            o.favorite ? "★ wants to go" : null,
+            o.visited ? `been${o.rating ? " " + "★".repeat(o.rating) : ""}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          {o.notes && !compact && <span className="friend-notes"> “{o.notes}”</span>}
+        </div>
+      ))}
     </div>
   );
 }

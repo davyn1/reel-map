@@ -10,7 +10,10 @@ from app.db import get_session, init_db
 from app.importer.run import run
 from app.main import app
 from app.models import Place
+from app.users import add_user
 from tests.conftest import row
+
+PASSWORDS = {"alice": "alice-password", "bob": "bob-password"}
 
 OAKLAND_POPUP = dict(address="Oakland, CA, United States", city="Oakland", lat=37.805, lng=-122.273, confidence="low")
 
@@ -29,6 +32,8 @@ def db(write_export):
             row(venue="Deli Board (multi-spot reel)", address="1590 Bryant St, San Francisco, CA 94103",
                 lat=37.767, lng=-122.411, note="reel covers 3 sandwich shops", post_url="u5"),
         ])], s)
+        add_user(s, "alice", "Alice", PASSWORDS["alice"])  # first account
+        add_user(s, "bob", "Bob", PASSWORDS["bob"])
 
     def override():
         with Session() as s:
@@ -39,9 +44,22 @@ def db(write_export):
     app.dependency_overrides.clear()
 
 
+def login(username: str) -> TestClient:
+    c = TestClient(app)
+    res = c.post("/api/auth/login", json={"username": username, "password": PASSWORDS[username]})
+    assert res.status_code == 200, res.text
+    return c
+
+
 @pytest.fixture
 def client(db):
-    return TestClient(app)
+    """Logged in as alice."""
+    return login("alice")
+
+
+@pytest.fixture
+def bob(db):
+    return login("bob")
 
 
 def places_by_name(client):
@@ -242,10 +260,10 @@ def test_edit_tags_rejects_unknown_tags(client):
 def test_api_changes_update_the_log(client, log_in_tmp):
     pid = next(p["id"] for p in client.get("/api/places").json() if p["name"] == "Test Cafe")
     client.post(f"/api/places/{pid}/visit", json={"visited": True, "rating": 4})
-    entry = json.loads(log_in_tmp.read_text(encoding="utf-8"))["places"][0]
+    entry = json.loads(log_in_tmp.read_text(encoding="utf-8"))["users"]["alice"]["places"][0]
     assert (entry["name"], entry["rating"]) == ("Test Cafe", 4)
     client.put(f"/api/places/{pid}/tags", json={"tags": ["Thai"]})
-    assert json.loads(log_in_tmp.read_text(encoding="utf-8"))["places"][0]["tags"] == ["Thai"]
+    assert json.loads(log_in_tmp.read_text(encoding="utf-8"))["tags"][0]["tags"] == ["Thai"]
 
 
 def test_health(client):
@@ -271,3 +289,118 @@ def test_built_frontend_is_served_but_api_wins(tmp_path):
     assert "Food Map" in c.get("/").text
     assert c.get("/app.js").text == "console.log(1)"
     assert c.get("/api/ping").json() == {"pong": True}
+
+
+
+# ---- logins -------------------------------------------------------------------------------
+
+def test_everything_but_health_and_login_needs_a_login(db):
+    anon = TestClient(app)
+    assert anon.get("/api/health").status_code == 200
+    for method, path in [("get", "/api/places"), ("get", "/api/stats"), ("get", "/api/tags"), ("get", "/api/flags"),
+                         ("get", "/api/reels/review"), ("post", "/api/places/1/visit"), ("put", "/api/places/1/tags"),
+                         ("post", "/api/reels/1/reject"), ("get", "/api/auth/me")]:
+        res = anon.get(path) if method == "get" else getattr(anon, method)(path, json={})
+        assert res.status_code == 401, path
+
+
+def test_login_me_logout(db):
+    c = login("alice")
+    assert c.get("/api/auth/me").json() == {"username": "alice", "display_name": "Alice"}
+    cookie = c.cookies.get("yums_session")
+    assert cookie and len(cookie) > 30
+    assert c.post("/api/auth/logout").status_code == 204
+    assert c.get("/api/places").status_code == 401
+    # the old token is gone server-side too, not just the cookie
+    replay = TestClient(app, cookies={"yums_session": cookie})
+    assert replay.get("/api/places").status_code == 401
+
+
+def test_login_is_case_insensitive_on_username(db):
+    c = TestClient(app)
+    assert c.post("/api/auth/login", json={"username": " Alice ", "password": PASSWORDS["alice"]}).status_code == 200
+
+
+def test_wrong_password_and_lockout(db, monkeypatch):
+    from app import auth
+
+    monkeypatch.setattr(auth, "throttle", auth.LoginThrottle(max_failures=3, lockout_seconds=60))
+    import app.routers.auth as auth_router
+
+    monkeypatch.setattr(auth_router, "throttle", auth.throttle)
+    c = TestClient(app)
+    for _ in range(3):
+        assert c.post("/api/auth/login", json={"username": "alice", "password": "nope-nope"}).status_code == 401
+    # locked now, even with the right password
+    res = c.post("/api/auth/login", json={"username": "alice", "password": PASSWORDS["alice"]})
+    assert res.status_code == 429 and "Try again" in res.json()["detail"]
+    # other accounts unaffected
+    assert c.post("/api/auth/login", json={"username": "bob", "password": PASSWORDS["bob"]}).status_code == 200
+
+
+def test_unknown_user_gets_the_same_error(db):
+    c = TestClient(app)
+    res = c.post("/api/auth/login", json={"username": "mallory", "password": "whatever-123"})
+    assert res.status_code == 401 and res.json()["detail"] == "Wrong username or password."
+
+
+# ---- friend mode --------------------------------------------------------------------------
+
+def test_visits_are_per_person_and_visible_to_the_other(client, bob):
+    pid = places_by_name(client)["Test Cafe"]["id"]
+    client.post(f"/api/places/{pid}/visit", json={"visited": True, "rating": 5, "notes": "wings!"})
+    bob.post(f"/api/places/{pid}/visit", json={"favorite": True})
+
+    mine = places_by_name(client)["Test Cafe"]
+    assert (mine["visited"], mine["rating"], mine["favorite"]) == (True, 5, False)
+    assert mine["others"] == [{"username": "bob", "display_name": "Bob", "visited": False, "rating": None,
+                               "notes": None, "favorite": True}]
+
+    theirs = places_by_name(bob)["Test Cafe"]
+    assert (theirs["visited"], theirs["favorite"]) == (False, True)
+    assert theirs["others"][0]["display_name"] == "Alice" and theirs["others"][0]["notes"] == "wings!"
+
+    assert client.get("/api/stats").json()["visited"] == 1 and client.get("/api/stats").json()["favorites"] == 0
+    assert bob.get("/api/stats").json()["visited"] == 0 and bob.get("/api/stats").json()["favorites"] == 1
+
+
+def test_people_with_nothing_logged_are_not_listed(client, bob):
+    assert places_by_name(client)["Test Cafe"]["others"] == []
+
+
+# ---- accounts -----------------------------------------------------------------------------
+
+def test_first_account_takes_over_pre_login_visits(write_export):
+    from app.models import Visit
+
+    engine = create_engine("sqlite://")
+    init_db(engine)
+    with sessionmaker(bind=engine, expire_on_commit=False)() as s:
+        run([write_export([row(post_url="u1")])], s)
+        place = s.scalars(select(Place)).one()
+        s.add(Visit(place=place, user="me", visited=True, rating=4))
+        s.commit()
+        _, taken = add_user(s, "davy", "Davy", "long-enough-pw")
+        assert taken == 1
+        assert s.scalars(select(Visit)).one().user == "davy"
+        _, taken = add_user(s, "alex", "Alex", "long-enough-pw")
+        assert taken == 0
+
+
+def test_add_user_validation(db):
+    with db() as s:
+        with pytest.raises(ValueError, match="already exists"):
+            add_user(s, "ALICE", "x", "long-enough-pw")
+        with pytest.raises(ValueError, match="at least 8"):
+            add_user(s, "carol", "Carol", "short")
+        with pytest.raises(ValueError, match="letters, numbers"):
+            add_user(s, "carol smith", "Carol", "long-enough-pw")
+
+
+def test_changing_password_logs_out_devices(db):
+    from app.users import set_password
+
+    c = login("alice")
+    with db() as s:
+        set_password(s, "alice", "brand-new-password")
+    assert c.get("/api/places").status_code == 401

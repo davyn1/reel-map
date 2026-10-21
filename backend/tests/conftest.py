@@ -1,4 +1,8 @@
 import json
+import os
+
+# Tests talk plain http to the test client; secure cookies would never be sent back.
+os.environ["FOOD_MAP_COOKIE_SECURE"] = "false"
 from pathlib import Path
 
 import pytest

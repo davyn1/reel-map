@@ -7,6 +7,7 @@ Saved reels are exported by Meta's Muse AI as JSON, imported into SQLite, and sh
 - **Map:** coral pins are places to try, teal ones are places I've been. Dashed pins are approximate (pop-ups, home cooks, or places Muse could only place in a city). Crowded areas group into count bubbles that split as you zoom. Search by spot, dish or poster, filter by city, pin type or food type (about a dozen broad ones like Korean, Mexican, American, Seafood, Sweets & bakery, worked out from the captions), and tap a pin, or a place in the list below the map, for the address, an "Open in Google Maps" link and the reels that mention it.
 - **Pick for me:** can't decide? 🎲 picks a random place you haven't tried from whatever the search and filters show, flies to it and opens it. "Pick again" never repeats the last one.
 - **Visit log and favorites:** mark a place "been here", then give it 1–5 stars, the date you went and a note ("get the spicy wings"). Star places you most want to try. The list can sort by favorites, top rated or most recently visited.
+- **Two people, separate logs:** you and a friend each log in (no sign-up page; accounts are made from the command line). Each person's been-here, stars, notes and favorites are their own, the other person's show up in each place's popup, and "Both want to go" shows places you've both starred.
 - **Review:** reels Muse couldn't place, or that cover several spots, wait here. Each shows what's missing from the export (flags like `no_venue` or `multi_spot`) and Muse's note. Fix one by dropping a pin on a small map or attaching it to an existing place, or reject it.
 
 No API keys are needed. Pins use Muse's own coordinates, and the map tiles come from [OpenFreeMap](https://openfreemap.org).
@@ -29,6 +30,20 @@ pip install -r requirements.txt
 cd ../frontend
 npm install
 ```
+
+## Logins
+
+Make an account for each person (it asks for the password, which isn't shown as you type):
+
+```bash
+# backend/
+python -m app.users add davy --name "Davy"
+python -m app.users add alex --name "Alex"
+python -m app.users list              # who has an account, how many devices are logged in
+python -m app.users passwd davy       # change a password (logs that person out everywhere)
+```
+
+The first account you make takes over anything logged before logins existed.
 
 ## Import reels
 
@@ -84,7 +99,7 @@ cd frontend && npm run typecheck
 
 **Ideas**
 - [ ] Back up the Muse exports too: keep them under `personal/` so a restore on a new machine has everything it needs (the log alone needs the places re-imported first)
-- [ ] Friend mode: a "me / friend" switch with separate been-here, ratings and favorites, plus a "both want to go" filter (`visits.user` already supports it)
+- [x] Friend mode: a "me / friend" switch with separate been-here, ratings and favorites, plus a "both want to go" filter (`visits.user` already supports it)
 - [ ] Food crawl planner: pick a few places, order them sensibly, and open one multi-stop Google Maps link
 - [ ] Which posters to trust: each poster's average rating across the places you've tried
 - [ ] Watch the reel in the app: Instagram's embed in the popup (test first; it can be unreliable)

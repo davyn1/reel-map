@@ -7,15 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app import backup
+from app.auth import require_user
 from app.db import get_session
 from app.maps_link import google_maps_url
-from app.models import Place, Visit
-from app.schemas import PlaceOut, ReelBrief, TagsIn, VisitIn
+from app.models import Place, User, Visit
+from app.schemas import FriendVisitOut, PlaceOut, ReelBrief, TagsIn, VisitIn
 from app.tags import TAG_ORDER, place_tags, sort_tags
 
-router = APIRouter(prefix="/api/places", tags=["places"])
-
-USER = "me"  # single user until auth exists
+router = APIRouter(prefix="/api/places", tags=["places"], dependencies=[Depends(require_user)])
 
 
 _CITY_BEFORE_STATE = re.compile(r"([^,]+),\s*CA\b")
@@ -30,8 +29,19 @@ def place_city(place: Place) -> str | None:
     return match.group(1).strip() if match else None
 
 
-def place_out(place: Place) -> PlaceOut:
-    visit = next((v for v in place.visits if v.user == USER), None)
+def display_names(session: Session) -> dict[str, str]:
+    return {u.username: u.display_name for u in session.scalars(select(User))}
+
+
+def place_out(place: Place, me: str, names: dict[str, str]) -> PlaceOut:
+    """`me` is the logged-in username: their visit fills the top-level fields, everyone else's goes in `others`."""
+    visit = next((v for v in place.visits if v.user == me), None)
+    others = [
+        FriendVisitOut(username=v.user, display_name=names.get(v.user, v.user), visited=v.visited,
+                       rating=v.rating, notes=v.notes, favorite=v.favorite)
+        for v in sorted(place.visits, key=lambda v: v.user)
+        if v.user != me and (v.visited or v.favorite or v.notes)
+    ]
     reels = sorted({r.id: r for r in [*place.reels, *place.extra_reels] if r.status != "rejected"}.values(), key=lambda r: r.id)
     return PlaceOut(
         id=place.id,
@@ -49,22 +59,24 @@ def place_out(place: Place) -> PlaceOut:
         rating=visit.rating if visit else None,
         notes=visit.notes if visit else None,
         favorite=bool(visit and visit.favorite),
+        others=others,
         reels=[ReelBrief(id=r.id, post_url=r.post_url, posted_by=r.posted_by, dish=r.dish, status=r.status) for r in reels],
     )
 
 
 @router.get("", response_model=list[PlaceOut])
-def list_places(session: Session = Depends(get_session)):
+def list_places(user: User = Depends(require_user), session: Session = Depends(get_session)):
     places = session.scalars(
         select(Place)
         .options(selectinload(Place.reels), selectinload(Place.extra_reels), selectinload(Place.visits))
         .order_by(Place.id)  # import order; the map numbers pins in this order
     )
-    return [place_out(p) for p in places]
+    names = display_names(session)
+    return [place_out(p, user.username, names) for p in places]
 
 
 @router.post("/{place_id}/visit", response_model=PlaceOut)
-def update_visit(place_id: int, body: VisitIn, session: Session = Depends(get_session)):
+def update_visit(place_id: int, body: VisitIn, user: User = Depends(require_user), session: Session = Depends(get_session)):
     """Update the visit log. Only fields present in the body change; send null to clear rating/notes/date.
 
     `visited` takes the desired state rather than flipping, so a double click can't undo itself.
@@ -74,9 +86,9 @@ def update_visit(place_id: int, body: VisitIn, session: Session = Depends(get_se
     place = session.get(Place, place_id)
     if place is None:
         raise HTTPException(404, "place not found")
-    visit = next((v for v in place.visits if v.user == USER), None)
+    visit = next((v for v in place.visits if v.user == user.username), None)
     if visit is None:
-        visit = Visit(place=place, user=USER)
+        visit = Visit(place=place, user=user.username)
         session.add(visit)
     sent = body.model_fields_set
     if "visited" in sent and body.visited is not None:
@@ -96,11 +108,11 @@ def update_visit(place_id: int, body: VisitIn, session: Session = Depends(get_se
         visit.favorite = body.favorite
     session.commit()
     backup.save_log_quietly(session)
-    return place_out(place)
+    return place_out(place, user.username, display_names(session))
 
 
 @router.put("/{place_id}/tags", response_model=PlaceOut)
-def set_tags(place_id: int, body: TagsIn, session: Session = Depends(get_session)):
+def set_tags(place_id: int, body: TagsIn, user: User = Depends(require_user), session: Session = Depends(get_session)):
     """Pick a place's tags by hand (any of GET /api/tags, or none), or send null to go back to automatic."""
     place = session.get(Place, place_id)
     if place is None:
@@ -114,4 +126,4 @@ def set_tags(place_id: int, body: TagsIn, session: Session = Depends(get_session
         place.tags_override = None
     session.commit()
     backup.save_log_quietly(session)
-    return place_out(place)
+    return place_out(place, user.username, display_names(session))

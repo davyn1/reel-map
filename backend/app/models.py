@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Column, Date, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -62,7 +62,7 @@ class Visit(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     place_id: Mapped[int] = mapped_column(ForeignKey("places.id"))
-    user: Mapped[str] = mapped_column(String, default="me")
+    user: Mapped[str] = mapped_column(String)  # users.username
     visited: Mapped[bool] = mapped_column(Boolean, default=False)
     favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     visited_date: Mapped[date | None] = mapped_column(Date)
@@ -72,3 +72,31 @@ class Visit(Base):
     place: Mapped[Place] = relationship(back_populates="visits")
 
     __table_args__ = (UniqueConstraint("place_id", "user"),)
+
+
+class User(Base):
+    """You and your friend. Accounts are made with `python -m app.users`; there is no sign-up page."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True)  # also the key in visits.user
+    display_name: Mapped[str] = mapped_column(String)
+    password_hash: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+
+    sessions: Mapped[list["LoginSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class LoginSession(Base):
+    """A logged-in browser. Only a hash of the cookie's token is stored."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+    user: Mapped[User] = relationship(back_populates="sessions")

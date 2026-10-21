@@ -5,7 +5,7 @@ import type { LatLngBoundsExpression, Marker as LeafletMarker, MarkerClusterGrou
 import { api, type Place, type Stats, type VisitUpdate } from "../api";
 import { MinimalBasemap } from "../basemap";
 import { TagEditor } from "../components/TagEditor";
-import { FavoriteButton, Stars, VisitLog } from "../components/VisitLog";
+import { FavoriteButton, FriendLines, Stars, VisitLog } from "../components/VisitLog";
 import { dishLine } from "../captions";
 import { clusterIcon, pinClasses, pinIcon, placeIcon, spreadOverlaps, type Pin } from "../mapUtils";
 
@@ -13,12 +13,13 @@ const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 // Zoomed in this far, every pin shows on its own.
 const NO_CLUSTER_ZOOM = 14;
 
-type PinType = "all" | "todo" | "visited" | "favorites" | "approx" | "exact";
+type PinType = "all" | "todo" | "visited" | "favorites" | "both" | "approx" | "exact";
 const PIN_TYPES: [PinType, string][] = [
   ["all", "All pin types"],
   ["todo", "To try"],
   ["visited", "Been here"],
   ["favorites", "Favorites"],
+  ["both", "Both want to go"],
   ["exact", "Exact address"],
   ["approx", "Approximate"],
 ];
@@ -36,6 +37,7 @@ function matchesType(place: Place, type: PinType): boolean {
     case "todo": return !place.visited;
     case "visited": return place.visited;
     case "favorites": return place.favorite;
+    case "both": return place.favorite && place.others.some((o) => o.favorite);
     case "approx": return place.is_approximate;
     case "exact": return !place.is_approximate;
     default: return true;
@@ -158,6 +160,7 @@ function PlacePopup({
         Open in Google Maps
       </a>
       <VisitLog place={place} onUpdate={onUpdate} />
+      <FriendLines others={place.others} />
       <div className="popup-reels">
         {place.reels.map((r) => (
           <div key={r.id} className="popup-reel">
@@ -482,6 +485,7 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
                 </div>
               )}
               {place.notes && <p className="card-notes">“{place.notes}”</p>}
+              <FriendLines others={place.others} compact />
               <div className="meta">
                 <span className={`dot ${place.visited ? "visited" : ""}`} />
                 {place.city && <span>{place.city}</span>}

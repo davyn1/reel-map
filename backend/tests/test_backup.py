@@ -33,28 +33,35 @@ def log_some(s):
     from datetime import date
 
     stans, tacko = place(s, "Stans Donuts"), place(s, "Tacko")
-    s.add(Visit(place=stans, user="me", visited=True, visited_date=date(2026, 10, 12), rating=5, notes="go early"))
-    s.add(Visit(place=tacko, user="me", favorite=True))
+    s.add(Visit(place=stans, user="davy", visited=True, visited_date=date(2026, 10, 12), rating=5, notes="go early"))
+    s.add(Visit(place=tacko, user="davy", favorite=True))
+    s.add(Visit(place=stans, user="alex", favorite=True))
     tacko.tags_override = ["Mexican", "Seafood"]
     s.commit()
 
 
-def test_export_has_only_logged_places_keyed_by_post_url(write_export):
+def test_export_is_per_person_with_shared_tags(write_export):
     s = fresh_session(write_export)
     log_some(s)
     assert export_log(s) == {
-        "version": 1,
-        "places": [
-            {
-                "name": "Stans Donuts",
-                "post_urls": ["https://ig/u1", "https://ig/u2"],
-                "visited": True,
-                "visited_date": "2026-10-12",
-                "rating": 5,
-                "notes": "go early",
+        "version": 2,
+        "users": {
+            "alex": {"places": [{"name": "Stans Donuts", "post_urls": ["https://ig/u1", "https://ig/u2"], "favorite": True}]},
+            "davy": {
+                "places": [
+                    {
+                        "name": "Stans Donuts",
+                        "post_urls": ["https://ig/u1", "https://ig/u2"],
+                        "visited": True,
+                        "visited_date": "2026-10-12",
+                        "rating": 5,
+                        "notes": "go early",
+                    },
+                    {"name": "Tacko", "post_urls": ["https://ig/u3"], "favorite": True},
+                ]
             },
-            {"name": "Tacko", "post_urls": ["https://ig/u3"], "favorite": True, "tags": ["Mexican", "Seafood"]},
-        ],
+        },
+        "tags": [{"name": "Tacko", "post_urls": ["https://ig/u3"], "tags": ["Mexican", "Seafood"]}],
     }
 
 
@@ -64,22 +71,27 @@ def test_round_trip_onto_a_fresh_database(write_export, tmp_path):
     path = tmp_path / "log.json"
     write_log(a, path)
 
-    b = fresh_session(write_export)  # e.g. a new PC: re-imported, nothing logged
+    b = fresh_session(write_export)  # e.g. the hosted server: re-imported, nothing logged
     restored, unmatched = restore_log(b, json.loads(path.read_text(encoding="utf-8")))
-    assert (restored, unmatched) == (2, [])
+    assert (restored, unmatched) == (4, [])
     assert export_log(b) == export_log(a)
 
 
-def test_restore_matches_on_any_post_url_and_reports_unmatched(write_export):
+def test_version_1_file_restores_into_the_named_user(write_export):
     s = fresh_session(write_export)
-    data = {
+    v1 = {
+        "version": 1,
         "places": [
-            {"name": "Stans Donuts", "post_urls": ["https://ig/u2", "https://ig/not-imported"], "favorite": True},
+            {"name": "Stans Donuts", "post_urls": ["https://ig/u2", "https://ig/not-imported"], "rating": 4, "visited": True},
+            {"name": "Tacko", "post_urls": ["https://ig/u3"], "tags": ["Mexican"]},
             {"name": "Gone", "post_urls": ["https://ig/missing"], "favorite": True},
-        ]
+        ],
     }
-    assert restore_log(s, data) == (1, ["Gone"])
-    assert export_log(s)["places"][0]["favorite"] is True
+    restored, unmatched = restore_log(s, v1, v1_user="davy")
+    assert unmatched == ["Gone"]
+    out = export_log(s)
+    assert out["users"]["davy"]["places"][0]["rating"] == 4
+    assert out["tags"] == [{"name": "Tacko", "post_urls": ["https://ig/u3"], "tags": ["Mexican"]}]
 
 
 def test_write_log_is_stable(write_export, tmp_path):
@@ -90,5 +102,4 @@ def test_write_log_is_stable(write_export, tmp_path):
     first, mtime = path.read_text(encoding="utf-8"), path.stat().st_mtime_ns
     write_log(s, path)  # nothing changed: file untouched
     assert path.read_text(encoding="utf-8") == first and path.stat().st_mtime_ns == mtime
-    assert "id" not in json.loads(first)["places"][0]  # no database ids
-
+    assert "id" not in json.loads(first)["users"]["davy"]["places"][0]  # no database ids

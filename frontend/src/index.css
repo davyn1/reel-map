@@ -37,7 +37,11 @@ input::placeholder { color: var(--muted); }
 select { appearance: none; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 
 /* ---------- shell ---------- */
-.app { max-width: 960px; margin: 0 auto; padding: 0 16px 32px; }
+/* Installed to the home screen, the page runs under the iPhone status bar / notch and home bar. */
+.app {
+  max-width: 960px; margin: 0 auto;
+  padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
 .topbar { display: flex; align-items: center; gap: 12px; padding: 18px 0 14px; }
 .topbar h1 { flex: 1; margin: 0; font-size: 1.35rem; font-weight: 600; text-align: center; }
 .icon-btn {
@@ -256,3 +260,20 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .existing ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
 .existing li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
 .fix-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- phones ---------- */
+@media (max-width: 600px) {
+  /* iOS zooms the page when focusing a field with text under 16px */
+  input, select, textarea { font-size: 16px; }
+  .visit-notes, .visit-date { font-size: 16px; }
+  /* comfortable thumb targets */
+  .been { padding: 9px 14px; font-size: 0.85rem; }
+  .fav-btn { width: 40px; height: 40px; }
+  .tag-chip { padding: 8px 14px; }
+  .pick-btn { flex: 1 1 100%; margin-left: 0; padding: 12px 16px; }
+  .filters label { flex: 1 1 140px; }
+  .filters select { width: 100%; }
+  .leaflet-popup-content .popup { max-width: min(280px, 72vw); }
+  .topbar { padding: 12px 0 10px; }
+  .topbar h1 { font-size: 1.2rem; }
+}

@@ -246,3 +246,28 @@ def test_api_changes_update_the_log(client, log_in_tmp):
     assert (entry["name"], entry["rating"]) == ("Test Cafe", 4)
     client.put(f"/api/places/{pid}/tags", json={"tags": ["Thai"]})
     assert json.loads(log_in_tmp.read_text(encoding="utf-8"))["places"][0]["tags"] == ["Thai"]
+
+
+def test_health(client):
+    assert client.get("/api/health").json() == {"status": "ok"}
+
+
+def test_built_frontend_is_served_but_api_wins(tmp_path):
+    from fastapi import FastAPI
+
+    from app.main import mount_frontend
+
+    app = FastAPI()
+
+    @app.get("/api/ping")
+    def ping():
+        return {"pong": True}
+
+    assert mount_frontend(app, tmp_path) is False  # nothing built: nothing mounted
+    (tmp_path / "index.html").write_text("<title>Food Map</title>", encoding="utf-8")
+    (tmp_path / "app.js").write_text("console.log(1)", encoding="utf-8")
+    assert mount_frontend(app, tmp_path) is True
+    c = TestClient(app)
+    assert "Food Map" in c.get("/").text
+    assert c.get("/app.js").text == "console.log(1)"
+    assert c.get("/api/ping").json() == {"pong": True}

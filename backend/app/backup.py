@@ -22,10 +22,10 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.config import PROJECT_DIR
+from app.config import PERSONAL_DIR
 from app.models import Place, Reel, Visit
 
-LOG_PATH = PROJECT_DIR / "personal" / "my-log.json"
+LOG_PATH = PERSONAL_DIR / "my-log.json"
 USER = "me"
 VERSION = 1
 

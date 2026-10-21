@@ -46,6 +46,8 @@ frontend/
     index.css        styles (CSS variables on :root)
     basemap.tsx      stripped-down vector basemap (see Frontend)
     pages/MapPage.tsx, ReviewPage.tsx
+  public/            manifest.webmanifest + app icons (home-screen install)
+  index.html         install tags (manifest, theme-color, apple-* for iPhone)
 data/                Muse exports (gitignored)
 personal/            my-log.json: your log, committed on purpose (see Personal data)
 ```
@@ -72,6 +74,20 @@ pytest
 # typecheck (from frontend/)
 npm run typecheck
 ```
+
+**One server (how the hosted app runs):** `npm run build` in `frontend/`, then `uvicorn app.main:app` alone serves the built map at `/` and the API at `/api/*` (`main.mount_frontend`, gzip on). The Vite dev server is only for working on the frontend.
+
+Settings come from environment variables (or `.env`), so the hosted server can point everything at a persistent volume:
+
+| variable | default | what |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///backend/food_map.db` | the database |
+| `FOOD_MAP_EXPORTS_DIR` | `data/` | Muse exports the importer reads |
+| `FOOD_MAP_PERSONAL_DIR` | `personal/` | where `my-log.json` is written |
+| `FOOD_MAP_FRONTEND_DIST` | `frontend/dist/` | built map served at `/` |
+| `FOOD_MAP_CORS_ORIGINS` | the Vite dev origins | comma-separated |
+
+`GET /api/health` returns `{"status": "ok"}`.
 
 `.claude/launch.json` defines `api` (uvicorn on :8000) and `web` (Vite on :5173) for the Claude browser preview. The Vite dev server proxies `/api` to :8000, so the frontend uses relative URLs.
 
@@ -171,6 +187,7 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
 
 ## Frontend (phase 1)
 
+- Phone first: it's mostly used on the go. Installable to the home screen (`public/manifest.webmanifest`, "Yums Map", standalone, icons rendered from an HTML pin to PNG). Full-screen on iPhone runs under the status bar, so `.app` pads with `env(safe-area-inset-*)`. Under 600px: inputs are 16px (iOS zooms on smaller), bigger tap targets, full-width Pick for me. Check layouts at 390×844.
 - Look: dark theme modelled on a Muse-drafted mockup ("Bay Area Yums Map"). Colors are CSS variables on `:root` in `index.css`: coral `--todo` = to try, teal `--visited` = been here, dashed outline = approximate.
 - Basemap (`basemap.tsx`): fetches OpenFreeMap's Positron style, recolors it with the dark `PALETTE`, and keeps only background, water, freeways (motorway incl. bridges/tunnels), trunk highways, US/interstate route shields, water names, and city/town labels. Everything else (buildings, minor roads, parks, rail, airports, boundaries, POIs) is dropped. To show more or less, edit the `KEEP` set; layer ids are from the Positron style. Falls back to OSM raster tiles if the style can't load.
 - Map page, top to bottom:

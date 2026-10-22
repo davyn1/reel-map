@@ -245,11 +245,28 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .friend-lines.compact { margin: 0 0 6px; font-size: 0.8rem; }
 .friend-notes { font-style: italic; }
 
-/* ---------- pin picker (review page, add a place) ---------- */
+/* ---------- add a place ---------- */
+.icon-btn.add-btn { background: var(--accent); color: #0d2a24; font-size: 1.5rem; font-weight: 700; }
+.add-page { max-width: 640px; margin: 0 auto; }
+.add-form { display: grid; gap: 16px; }
+.add-form > label, .add-form .field { display: grid; gap: 6px; color: var(--muted); font-size: 0.9rem; }
+.add-form .field-label { color: var(--muted); }
+.add-form input:not([type=checkbox]), .add-form textarea { width: 100%; }
+.add-form .coords { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.add-form .coords label { display: grid; gap: 4px; }
+.add-form .coords label.check { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; }
+.add-form .coords input[type=checkbox], .new-place .coords input[type=checkbox] { width: auto; }
+.add-form .coords input { width: 140px; }
+.add-form .check, .add-form .checks label { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 0.95rem; }
+.add-form .checks { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+.add-submit { padding: 13px; font-size: 1rem; }
+.small { font-size: 0.8rem; }
+.notice.warn { background: rgba(227, 179, 65, 0.12); color: var(--warn); flex-wrap: wrap; }
+.notice.warn .link-btn { color: var(--warn); }
+.notice.warn button { margin-left: 0; }
 .pin-picker-wrap { display: grid; gap: 8px; }
 .pin-picker-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .loc-error { color: var(--warn); font-size: 0.85rem; }
-.new-place .coords input[type=checkbox] { width: auto; }
 
 /* ---------- review page ---------- */
 .review-toolbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }

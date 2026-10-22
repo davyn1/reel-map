@@ -1,19 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, AUTH_REQUIRED_EVENT, type Me, type Stats } from "./api";
+import AddPlacePage from "./pages/AddPlacePage";
 import LoginPage from "./pages/LoginPage";
 import MapPage from "./pages/MapPage";
 import ReviewPage from "./pages/ReviewPage";
 
-type Route = "map" | "review";
+type Route = "map" | "review" | "add";
 
 function currentRoute(): Route {
-  return window.location.hash === "#/review" ? "review" : "map";
+  const hash = window.location.hash;
+  if (hash === "#/review") return "review";
+  if (hash === "#/add") return "add";
+  return "map";
 }
+
+/** "#/place/12" → 12: the map flies to that place (after adding one, or "Show it" on a duplicate). */
+function focusFromHash(): number | null {
+  const m = window.location.hash.match(/^#\/place\/(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
+const TITLES: Record<Route, string> = { map: "Bay Area Yums Map", review: "Needs review", add: "Add a place" };
 
 export default function App() {
   // undefined = still checking the login; null = logged out
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [route, setRoute] = useState<Route>(currentRoute);
+  const [focusId, setFocusId] = useState<number | null>(focusFromHash);
   const [stats, setStats] = useState<Stats | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -28,6 +41,7 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       setRoute(currentRoute());
+      setFocusId(focusFromHash());
       window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", onHash);
@@ -60,14 +74,16 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        {route === "review" ? (
+        {route === "map" ? (
+          <a className="icon-btn add-btn" href="#/add" aria-label="Add a place" title="Add a place">
+            ＋
+          </a>
+        ) : (
           <a className="icon-btn" href="#/" aria-label="Back to map">
             ‹
           </a>
-        ) : (
-          <span className="icon-btn placeholder" />
         )}
-        <h1>{route === "review" ? "Needs review" : "Bay Area Yums Map"}</h1>
+        <h1>{TITLES[route]}</h1>
         <div className="user-menu">
           <button
             className="icon-btn avatar"
@@ -87,10 +103,26 @@ export default function App() {
           )}
         </div>
       </header>
-      {route === "map" ? (
-        <MapPage key={me.username} stats={stats} onChanged={refreshStats} />
-      ) : (
-        <ReviewPage onQueueChange={refreshStats} />
+      {route === "map" && (
+        <MapPage
+          key={me.username}
+          stats={stats}
+          onChanged={refreshStats}
+          focusId={focusId}
+          onFocused={() => {
+            setFocusId(null);
+            history.replaceState(null, "", "#/"); // so a refresh doesn't fly there again
+          }}
+        />
+      )}
+      {route === "review" && <ReviewPage onQueueChange={refreshStats} />}
+      {route === "add" && (
+        <AddPlacePage
+          onAdded={(id) => {
+            refreshStats();
+            window.location.hash = `#/place/${id}`;
+          }}
+        />
       )}
     </div>
   );

@@ -8,6 +8,7 @@ Saved reels are exported by Meta's Muse AI as JSON, imported into SQLite, and sh
 - **Pick for me:** can't decide? 🎲 picks a random place you haven't tried from whatever the search and filters show, flies to it and opens it. "Pick again" never repeats the last one.
 - **Visit log and favorites:** mark a place "been here", then give it 1–5 stars, the date you went and a note ("get the spicy wings"). Star places you most want to try. The list can sort by favorites, top rated or most recently visited.
 - **Two people, separate logs:** you and a friend each log in (no sign-up page; accounts are made from the command line). Each person's been-here, stars, notes and favorites are their own, the other person's show up in each place's popup, and "Both want to go" shows places you've both starred.
+- **Add places yourself:** the ＋ button adds a place by hand: tap the map or use your location for the pin, optionally paste the reel or website. It warns if it's already on the map.
 - **Review:** reels Muse couldn't place, or that cover several spots, wait here. Each shows what's missing from the export (flags like `no_venue` or `multi_spot`) and Muse's note. Fix one by dropping a pin on a small map or attaching it to an existing place, or reject it.
 
 No API keys are needed. Pins use Muse's own coordinates, and the map tiles come from [OpenFreeMap](https://openfreemap.org).
@@ -97,6 +98,8 @@ cd frontend && npm run typecheck
 - [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
 - [x] Clean up place-card wording: trim captions to the dish (they repeat the name and address and are cut off at 140 characters), and drop the "exact address" label (only say when a location is approximate)
 - [x] Pick for me: one button that picks a random to-try place matching the current filters (e.g. Korean in Hayward) and flies to it
+- [x] Add a place by hand in the app: name, optional link and address, pin from the map, your location or coordinates; warns about duplicates; shows "added by …"
+- [ ] Live sync between the two of us: an open app picks up the other person's changes (new places, been-here, ratings) within seconds, without refreshing. Data is already shared once hosted; this is about seeing it live
 
 **Data quality**
 - [ ] Clear the review queue: 2 multi-spot reels (Butter & Crumble, Deli Board) need their other spots added, and 4 reels have no venue

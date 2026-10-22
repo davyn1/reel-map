@@ -178,13 +178,24 @@ function PlacePopup({
       <VisitLog place={place} onUpdate={onUpdate} />
       <FriendLines others={place.others} />
       <div className="popup-reels">
-        {place.reels.map((r) => (
-          <div key={r.id} className="popup-reel">
-            <a href={r.post_url} target="_blank" rel="noreferrer">
-              {r.posted_by ? `@${r.posted_by}` : "Reel"}
-            </a>
-          </div>
-        ))}
+        {place.reels.map((r) => {
+          const isLink = /^https?:\/\//i.test(r.post_url); // hand-added places without a link use "manual:<id>"
+          const label = r.posted_by
+            ? `@${r.posted_by}`
+            : /instagram\.com/i.test(r.post_url)
+              ? "Reel"
+              : "Link";
+          return (
+            <div key={r.id} className="popup-reel">
+              {isLink && (
+                <a href={r.post_url} target="_blank" rel="noreferrer">
+                  {label}
+                </a>
+              )}
+              {r.added_by && <span className="muted">{isLink ? " · " : ""}added by {r.added_by}</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -199,7 +210,17 @@ function SearchIcon() {
   );
 }
 
-export default function MapPage({ stats, onChanged }: { stats: Stats | null; onChanged: () => void }) {
+export default function MapPage({
+  stats,
+  onChanged,
+  focusId = null,
+  onFocused,
+}: {
+  stats: Stats | null;
+  onChanged: () => void;
+  focusId?: number | null; // fly to this place once the map has loaded
+  onFocused?: () => void;
+}) {
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [allTags, setAllTags] = useState<string[]>([]);
   const [lastImport, setLastImport] = useState<ImportRun | null>(null);
@@ -273,6 +294,23 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
       document.querySelector(".map-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }
+
+  // Fly to a place named in the URL (#/place/12) once places and pins are ready.
+  useEffect(() => {
+    if (focusId === null || !places) return;
+    if (pins.some((p) => p.place.id === focusId)) {
+      focus(focusId);
+    } else {
+      // filtered out (or gone): clear filters so it can be shown
+      setQuery("");
+      setCity("");
+      setTag("");
+      setPinType("all");
+      if (!places.some((p) => p.id === focusId)) onFocused?.();
+      return;
+    }
+    onFocused?.();
+  }, [focusId, places, pins]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Random place from what's shown (search + filters), preferring ones you haven't been to;
    * never the same place twice in a row. */
@@ -510,11 +548,15 @@ export default function MapPage({ stats, onChanged }: { stats: Stats | null; onC
                 <span className={`dot ${place.visited ? "visited" : ""}`} />
                 {place.city && <span>{place.city}</span>}
                 {place.is_approximate && <span>approximate location</span>}
-                {first?.posted_by && (
-                  <span>
-                    saved from @{first.posted_by}
-                    {more > 0 ? ` +${more}` : ""}
-                  </span>
+                {first?.added_by ? (
+                  <span>added by {first.added_by}</span>
+                ) : (
+                  first?.posted_by && (
+                    <span>
+                      saved from @{first.posted_by}
+                      {more > 0 ? ` +${more}` : ""}
+                    </span>
+                  )
                 )}
               </div>
             </div>

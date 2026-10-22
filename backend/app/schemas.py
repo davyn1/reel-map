@@ -6,10 +6,11 @@ from pydantic import BaseModel, Field, model_validator
 
 class ReelBrief(BaseModel):
     id: int
-    post_url: str
+    post_url: str  # "manual:<id>" for a place added by hand without a link
     posted_by: str | None
     dish: str | None
     status: str
+    added_by: str | None = None  # display name of whoever added it by hand
 
 
 class FriendVisitOut(BaseModel):
@@ -76,6 +77,22 @@ class ReviewReelOut(BaseModel):
     review_reason: str | None
     place: PlaceBrief | None
     extra_places: list[PlaceBrief]
+
+
+class CreatePlaceIn(BaseModel):
+    """A place added by hand in the app."""
+
+    name: str = Field(min_length=1, max_length=120)
+    lat: float
+    lng: float
+    address: str | None = Field(None, max_length=300)
+    link: str | None = Field(None, max_length=500)  # Instagram reel, website, anything; optional
+    is_approximate: bool = False
+    tags: list[str] | None = None  # from GET /api/tags; omit for automatic
+    favorite: bool = False
+    visited: bool = False
+    notes: str | None = Field(None, max_length=2000)
+    force: bool = False  # add even though a similar place is nearby
 
 
 class TagsIn(BaseModel):

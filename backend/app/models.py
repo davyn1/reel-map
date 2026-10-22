@@ -51,7 +51,8 @@ class Reel(Base):
     status: Mapped[str] = mapped_column(String, default="needs_review")
     flags: Mapped[list[str]] = mapped_column(JSON, default=list)
     review_reason: Mapped[str | None] = mapped_column(Text)
-    source_file: Mapped[str | None] = mapped_column(String)
+    source_file: Mapped[str | None] = mapped_column(String)  # export file name, or "manual"
+    added_by: Mapped[str | None] = mapped_column(String)  # username, for places added by hand in the app
 
     place: Mapped[Place | None] = relationship(back_populates="reels")
     extra_places: Mapped[list[Place]] = relationship(secondary=reel_extra_places, back_populates="extra_reels")

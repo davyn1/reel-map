@@ -9,7 +9,7 @@ Pins use Muse's own coordinates. There is no Google Places (or any external API)
 ## Stack
 
 - Backend: Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite (`backend/food_map.db`)
-- Frontend: React (Vite) + Leaflet (react-leaflet). Main map basemap: OpenFreeMap vector tiles rendered by MapLibre GL inside Leaflet (`@maplibre/maplibre-gl-leaflet`), no API key. Review page pin picker (`components/PinPicker.tsx`): OpenFreeMap's full `dark` style (`basemap.StreetBasemap`), since placing a pin needs streets. CARTO's tiles now require an API key, so don't use them.
+- Frontend: React (Vite) + Leaflet (react-leaflet). Main map basemap: OpenFreeMap vector tiles rendered by MapLibre GL inside Leaflet (`@maplibre/maplibre-gl-leaflet`), no API key. Pin pickers (add-a-place, review page): OpenFreeMap's full `dark` style (`basemap.StreetBasemap`), since placing a pin needs streets. CARTO's tiles now require an API key, so don't use them.
 - `.env`, `data/*.json` and the SQLite file are gitignored; `personal/my-log.json` is committed on purpose (see Personal data)
 
 ## Folder layout
@@ -48,7 +48,7 @@ frontend/
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     index.css        styles (CSS variables on :root)
     basemap.tsx      MinimalBasemap (stripped-down, main map) and StreetBasemap (full detail, pin pickers)
-    pages/MapPage.tsx, ReviewPage.tsx, LoginPage.tsx
+    pages/MapPage.tsx, ReviewPage.tsx, LoginPage.tsx, AddPlacePage.tsx
   public/            manifest.webmanifest + app icons (home-screen install)
   index.html         install tags (manifest, theme-color, apple-* for iPhone)
 data/                Muse exports (gitignored)
@@ -103,7 +103,7 @@ To start over, delete `backend/food_map.db` and re-run the import.
 ## Data model
 
 - **places**: id, name, lat, lng, address, is_approximate (bool), tags_override (JSON list or null: hand-picked food tags; null = automatic)
-- **reels**: id, post_url (unique; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file
+- **reels**: id, post_url (unique; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file (export file name, or `manual`), added_by (username, hand-added places only)
 - **reel_extra_places**: reel_id, place_id. Extra spots for multi-spot reels; `reels.place_id` stays the reel's main place.
 - **visits**: id, place_id, user (= `users.username`), visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Notes and favorite don't require a visit. Before logins existed `user` was `"me"`; the first account created takes those rows over.
 - **users**: id, username (unique, lowercase), display_name, password_hash (`scrypt$n$r$p$salt$hash`), created_at. Made with `python -m app.users`; there is no sign-up page.
@@ -118,11 +118,13 @@ Food tags are computed, not stored (`tags.place_tags`), from keyword regexes ove
 - groups that sit alongside a cuisine (`tags.GROUPS`): Seafood, Sweets & bakery (donuts, cakes, boba, coffee…)
 Prefer widening an existing tag's keywords over adding a new tag. Edits re-tag every place on the next request, except places whose tags were picked by hand (`places.tags_override`), which keep their pick until reset. Hand-picked tags must come from the same fixed list (`tags.TAG_ORDER`), so the filter row stays short.
 
+Places added by hand in the app (`POST /api/places`) get one reel with `source_file = "manual"` and `added_by`, whose `post_url` is the link they gave (an Instagram link in canonical form, so a later Muse export of that reel is skipped as known) or `manual:<random id>` without one. That keeps them like every other place: shared, backed up, filterable.
+
 One place has many reels. The Google Maps link is computed (not stored) from name + address, falling back to lat/lng.
 
 ## Personal data
 
-`personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 2: `users.<username>.places[]` (been-here, visit date, rating, notes, favorite) plus a shared `tags[]` (hand-picked tags). Version-1 files (before logins, one person) still restore, into `--user` (default: the first account).
+`personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 2: `users.<username>.places[]` (been-here, visit date, rating, notes, favorite), a shared `tags[]` (hand-picked tags), and `manual_places[]` (places added by hand, which no Muse export can rebuild; restore recreates them first). Version-1 files (before logins, one person) still restore, into `--user` (default: the first account).
 - **All personal data in the repo goes under `personal/`, nowhere else.** The README's "Before making the repo public" steps rely on this to strip it in one go.
 - Places are keyed by their reels' post URLs, never database IDs, so a restore works after a fresh import.
 - Output is sorted with no timestamps, and the file is only rewritten when its content changes, so diffs show only real edits.
@@ -195,6 +197,7 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 - `POST /api/import` — Muse's upload: body is the export JSON. Auth: `Authorization: Bearer <FOOD_MAP_IMPORT_TOKEN>` (503 if no token is configured, 401 if wrong) or a logged-in session. Saves the body as `data/reels-upload-<UTC time>-<random>.json` first, then runs the normal import (known reels skipped). Returns `{saved_as, imported, pinned, approximate, needs_review, pinned_needing_review, skipped, merged, flags, skipped_details}`. 400 with line/column on bad JSON (file kept as `.invalid`), 413 over 5 MB, 409 if an import is already running.
 - `GET /api/imports?limit=` — recent import runs, newest first (login required)
 
+- `POST /api/places` — add a place by hand: `{name, lat, lng, address?, link?, is_approximate?, tags?, favorite?, visited?, notes?, force?}` → the place (201). 422 outside the Bay Area / bad link (must be http(s)) / unknown tag. 409 `{message, place_id, kind}`: `same_link` (that link is already on the map) or, unless `force`, `similar_nearby` (name score ≥ 80 within 150 m).
 - `GET /api/places` — every place (in import order) with `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
 - `GET /api/stats` — `reels_saved` (non-rejected), `on_map` (places), `cities`, `needs_review`, and the logged-in person's own `visited`, `favorites`
 - `POST /api/places/{id}/visit` — partial update of the visit log: any of `visited`, `visited_date`, `rating` (1–5), `notes`, `favorite`; only fields sent change, `null` clears rating/notes/date. `visited` takes the desired state rather than flipping, so a double click can't undo itself. Turning it on stamps today's date (unless one is sent); turning it off clears date and rating but keeps notes and favorite.
@@ -216,6 +219,8 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
 - Phone first: it's mostly used on the go. Installable to the home screen (`public/manifest.webmanifest`, "Yums Map", standalone, icons rendered from an HTML pin to PNG). Full-screen on iPhone runs under the status bar, so `.app` pads with `env(safe-area-inset-*)`. Under 600px: inputs are 16px (iOS zooms on smaller), bigger tap targets, full-width Pick for me. Check layouts at 390×844.
 - Look: dark theme modelled on a Muse-drafted mockup ("Bay Area Yums Map"). Colors are CSS variables on `:root` in `index.css`: coral `--todo` = to try, teal `--visited` = been here, dashed outline = approximate.
 - Basemap (`basemap.tsx`): fetches OpenFreeMap's Positron style, recolors it with the dark `PALETTE`, and keeps only background, water, freeways (motorway incl. bridges/tunnels), trunk highways, US/interstate route shields, water names, and city/town labels. Everything else (buildings, minor roads, parks, rail, airports, boundaries, POIs) is dropped. To show more or less, edit the `KEEP` set; layer ids are from the Positron style. Falls back to OSM raster tiles if the style can't load.
+- Routes (hash): `#/` map, `#/review`, `#/add`, `#/place/<id>` (map flies to that place, then the hash resets to `#/`).
+- Add a place (`#/add`, the ＋ in the title bar on the map): name; pin by tapping the street map, "📍 Use my location" (needs https or localhost) or typed coordinates; optional link, address, food tags (none = automatic), ★ want to go (on by default), been here, notes. A 409 shows the server's message with "Show it" and, for a similar place nearby, "Add anyway". Cards and popups say "added by <name>" instead of "saved from @…"; a hand-added place without a link shows no reel link.
 - Login screen (`LoginPage`) whenever `GET /api/auth/me` fails or any call returns 401 (`api.ts` fires `AUTH_REQUIRED_EVENT`). Title bar: avatar with your initial → "Logged in as …" / Log out.
 - Map page, top to bottom:
   - stat chips from `GET /api/stats` (reels saved, on the map, cities; "been there" and "favorites" toggle the matching pin filter; waiting for review → `#/review`)

@@ -62,6 +62,7 @@ def test_export_is_per_person_with_shared_tags(write_export):
             },
         },
         "tags": [{"name": "Tacko", "post_urls": ["https://ig/u3"], "tags": ["Mexican", "Seafood"]}],
+        "manual_places": [],
     }
 
 

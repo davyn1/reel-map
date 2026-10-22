@@ -11,7 +11,10 @@ Format (version 2):
     {"version": 2,
      "users": {"davy": {"places": [{"name", "post_urls", "visited"?, "visited_date"?, "rating"?,
                                     "notes"?, "favorite"?}, ...]}, ...},
-     "tags":  [{"name", "post_urls", "tags": [...]}, ...]}
+     "tags":  [{"name", "post_urls", "tags": [...]}, ...],
+     "manual_places": [{"post_url", "name", "lat", "lng", "address"?, "is_approximate", "added_by"}, ...]}
+Places added by hand in the app aren't in any Muse export, so they're saved whole in
+"manual_places" and recreated on restore (before visits and tags are applied).
 Version 1 (before logins: one person's entries, tags inline) still restores, into --user.
 
 All personal data in the repo lives under personal/; see the README to remove it.
@@ -68,6 +71,14 @@ def export_log(session: Session) -> dict:
     ).all()
     users: dict[str, list[dict]] = {}
     tags: list[dict] = []
+    manual = [
+        {k: v for k, v in {
+            "post_url": r.post_url, "name": r.place.name, "lat": r.place.lat, "lng": r.place.lng,
+            "address": r.place.address, "is_approximate": r.place.is_approximate, "added_by": r.added_by,
+        }.items() if v is not None}
+        for r in session.scalars(select(Reel).where(Reel.source_file == "manual"))
+        if r.place is not None
+    ]
     for place in places:
         if not _post_urls(place):
             continue
@@ -80,6 +91,7 @@ def export_log(session: Session) -> dict:
         "version": VERSION,
         "users": {u: {"places": sorted(entries, key=_sort_key)} for u, entries in sorted(users.items())},
         "tags": sorted(tags, key=_sort_key),
+        "manual_places": sorted(manual, key=lambda m: (m["name"].lower(), m["post_url"])),
     }
 
 
@@ -136,6 +148,17 @@ def restore_log(session: Session, data: dict, v1_user: str = LEGACY_USER) -> tup
     """Apply a log to the database. Returns (entries restored, names of entries with no matching place)."""
     data = _upgrade(data, v1_user)
     restored, unmatched = 0, []
+    for m in data.get("manual_places", []):
+        if session.scalars(select(Reel).where(Reel.post_url == m["post_url"])).first() is not None:
+            continue  # already there (e.g. restoring onto the same database)
+        place = Place(name=m["name"], lat=m["lat"], lng=m["lng"], address=m.get("address"),
+                      is_approximate=bool(m.get("is_approximate")))
+        session.add(place)
+        session.add(Reel(post_url=m["post_url"], venue_raw=m["name"], address_raw=m.get("address"), lat_raw=m["lat"],
+                         lng_raw=m["lng"], place=place, status="matched", flags=[], source_file="manual",
+                         added_by=m.get("added_by")))
+        restored += 1
+    session.flush()
     for username, section in data.get("users", {}).items():
         for entry in section.get("places", []):
             place = _find_place(session, entry.get("post_urls", []))

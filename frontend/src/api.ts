@@ -6,6 +6,7 @@ export interface ReelBrief {
   posted_by: string | null;
   dish: string | null;
   status: string;
+  added_by: string | null; // display name, for places added by hand in the app
 }
 
 export interface FriendVisit {
@@ -34,6 +35,31 @@ export interface ImportRun {
 export interface Me {
   username: string;
   display_name: string;
+}
+
+/** A place added by hand (POST /api/places). */
+export interface CreatePlace {
+  name: string;
+  lat: number;
+  lng: number;
+  address?: string | null;
+  link?: string | null;
+  is_approximate?: boolean;
+  tags?: string[] | null;
+  favorite?: boolean;
+  visited?: boolean;
+  notes?: string | null;
+  force?: boolean;
+}
+
+/** An HTTP error with the server's `detail` kept as-is (string or object, e.g. 409 duplicate info). */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public detail: unknown,
+  ) {
+    super(`${status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+  }
 }
 
 /** Fired when the server says the login has expired or is missing; App shows the login screen. */
@@ -122,13 +148,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
   }
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail: unknown = res.statusText;
     try {
       detail = (await res.json()).detail ?? detail;
     } catch {
       // not JSON; keep statusText
     }
-    throw new Error(`${res.status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+    throw new ApiError(res.status, detail);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -140,6 +166,7 @@ export const api = {
     request<Me>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   places: () => request<Place[]>("/api/places"),
+  createPlace: (body: CreatePlace) => request<Place>("/api/places", { method: "POST", body: JSON.stringify(body) }),
   updateVisit: (placeId: number, update: VisitUpdate) =>
     request<Place>(`/api/places/${placeId}/visit`, {
       method: "POST",

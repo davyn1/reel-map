@@ -1,4 +1,6 @@
+import math
 import re
+import uuid
 from collections import Counter
 from datetime import date
 
@@ -10,8 +12,11 @@ from app import backup
 from app.auth import require_user
 from app.db import get_session
 from app.maps_link import google_maps_url
-from app.models import Place, User, Visit
-from app.schemas import FriendVisitOut, PlaceOut, ReelBrief, TagsIn, VisitIn
+from app.importer.flags import in_bay_area
+from app.importer.matching import MIN_MERGE_NAME_SCORE, name_score
+from app.importer.parse import normalize_post_url
+from app.models import Place, Reel, User, Visit
+from app.schemas import CreatePlaceIn, FriendVisitOut, PlaceOut, ReelBrief, TagsIn, VisitIn
 from app.tags import TAG_ORDER, place_tags, sort_tags
 
 router = APIRouter(prefix="/api/places", tags=["places"], dependencies=[Depends(require_user)])
@@ -60,7 +65,11 @@ def place_out(place: Place, me: str, names: dict[str, str]) -> PlaceOut:
         notes=visit.notes if visit else None,
         favorite=bool(visit and visit.favorite),
         others=others,
-        reels=[ReelBrief(id=r.id, post_url=r.post_url, posted_by=r.posted_by, dish=r.dish, status=r.status) for r in reels],
+        reels=[
+            ReelBrief(id=r.id, post_url=r.post_url, posted_by=r.posted_by, dish=r.dish, status=r.status,
+                      added_by=names.get(r.added_by, r.added_by) if r.added_by else None)
+            for r in reels
+        ],
     )
 
 
@@ -73,6 +82,69 @@ def list_places(user: User = Depends(require_user), session: Session = Depends(g
     )
     names = display_names(session)
     return [place_out(p, user.username, names) for p in places]
+
+
+NEARBY_METERS = 150  # a similar name this close is probably the same place
+
+
+def _meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lng2 - lng1) / 2) ** 2
+    return 2 * 6_371_000 * math.asin(math.sqrt(a))
+
+
+def _link_key(link: str | None) -> str:
+    """The reel row's post_url: an Instagram link in canonical form, another http(s) link as-is,
+    or a unique "manual:" key when there's no link."""
+    link = (link or "").strip()
+    if not link:
+        return f"manual:{uuid.uuid4().hex[:12]}"
+    if not link.lower().startswith(("http://", "https://")):
+        raise HTTPException(422, "The link must start with http:// or https://")
+    return normalize_post_url(link)
+
+
+@router.post("", response_model=PlaceOut, status_code=201)
+def create_place(body: CreatePlaceIn, user: User = Depends(require_user), session: Session = Depends(get_session)):
+    """Add a place by hand. It gets a "manual" reel (holding the link, if any) so it behaves like any
+    other place: shared with the other person, backed up, and recognized if Muse later exports the
+    same reel. 409 if the link is already on the map, or (unless force) a similar place is nearby."""
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Give the place a name.")
+    if not in_bay_area(body.lat, body.lng):
+        raise HTTPException(422, "That pin is outside the Bay Area (are lat and lng swapped?)")
+    if body.tags is not None:
+        unknown = sorted(set(body.tags) - set(TAG_ORDER))
+        if unknown:
+            raise HTTPException(422, f"unknown tag(s): {', '.join(unknown)}")
+
+    key = _link_key(body.link)
+    existing = session.scalars(select(Reel).where(Reel.post_url == key)).first()
+    if existing is not None:
+        on = existing.place or (existing.extra_places[0] if existing.extra_places else None)
+        raise HTTPException(409, {"message": f"That link is already on the map as {on.name}." if on else
+                                  "That reel is already imported (it's in the review queue).",
+                                  "place_id": on.id if on else None, "kind": "same_link"})
+    if not body.force:
+        for other in session.scalars(select(Place).where(Place.is_approximate.is_(False))):
+            if _meters(body.lat, body.lng, other.lat, other.lng) <= NEARBY_METERS and name_score(name, other.name) >= MIN_MERGE_NAME_SCORE:
+                raise HTTPException(409, {"message": f"{other.name} is already on the map right there. Add anyway?",
+                                          "place_id": other.id, "kind": "similar_nearby"})
+
+    place = Place(name=name, lat=body.lat, lng=body.lng, address=(body.address or "").strip() or None,
+                  is_approximate=body.is_approximate, tags_override=sort_tags(body.tags) if body.tags is not None else None)
+    session.add(place)
+    session.add(Reel(post_url=key, venue_raw=name, address_raw=place.address, lat_raw=body.lat, lng_raw=body.lng,
+                     place=place, status="matched", flags=[], source_file="manual", added_by=user.username))
+    notes = (body.notes or "").strip() or None
+    if body.favorite or body.visited or notes:
+        session.add(Visit(place=place, user=user.username, favorite=body.favorite, visited=body.visited,
+                          visited_date=date.today() if body.visited else None, notes=notes))
+    session.commit()
+    backup.save_log_quietly(session)
+    session.refresh(place)
+    return place_out(place, user.username, display_names(session))
 
 
 @router.post("/{place_id}/visit", response_model=PlaceOut)

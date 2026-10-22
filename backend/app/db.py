@@ -24,6 +24,7 @@ def init_db(bind=engine) -> None:
 _ADDED_COLUMNS = {
     "visits": {"favorite": "BOOLEAN NOT NULL DEFAULT 0"},
     "places": {"tags_override": "JSON"},
+    "reels": {"added_by": "VARCHAR"},
 }
 
 

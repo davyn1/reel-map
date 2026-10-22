@@ -145,3 +145,37 @@ export function MinimalBasemap() {
   }
   return style ? <VectorLayer style={style} /> : null;
 }
+
+const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
+let streetStylePromise: Promise<StyleSpecification> | null = null;
+
+/**
+ * Full-detail dark street map (OpenFreeMap "dark", no API key) for placing pins, where streets
+ * and labels matter. Same OSM raster fallback as the main map.
+ */
+export function StreetBasemap() {
+  const [style, setStyle] = useState<StyleSpecification | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    streetStylePromise ??= fetch(STREET_STYLE_URL).then((r) => {
+      if (!r.ok) throw new Error(`street style: HTTP ${r.status}`);
+      return r.json() as Promise<StyleSpecification>;
+    });
+    streetStylePromise.then(setStyle).catch((e) => {
+      console.warn("Falling back to OSM raster tiles:", e);
+      streetStylePromise = null;
+      setFailed(true);
+    });
+  }, []);
+
+  if (failed) {
+    return (
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+    );
+  }
+  return style ? <VectorLayer style={style} /> : null;
+}

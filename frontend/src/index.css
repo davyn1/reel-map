@@ -245,6 +245,12 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .friend-lines.compact { margin: 0 0 6px; font-size: 0.8rem; }
 .friend-notes { font-style: italic; }
 
+/* ---------- pin picker (review page, add a place) ---------- */
+.pin-picker-wrap { display: grid; gap: 8px; }
+.pin-picker-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.loc-error { color: var(--warn); font-size: 0.85rem; }
+.new-place .coords input[type=checkbox] { width: auto; }
+
 /* ---------- review page ---------- */
 .review-toolbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
 .review-toolbar h2 { margin: 0; font-size: 1.15rem; }

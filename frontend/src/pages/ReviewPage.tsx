@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CircleMarker, MapContainer, TileLayer, useMapEvents } from "react-leaflet";
 import { api, type AttachBody, type Place, type ReviewReel } from "../api";
+import PinPicker from "../components/PinPicker";
 
-const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 
 function googleMapsSearch(query: string): string {
   return "https://www.google.com/maps/search/?" + new URLSearchParams({ api: "1", query });
@@ -321,24 +320,6 @@ function NewPlaceForm({
         Save place
       </button>
     </form>
-  );
-}
-
-function ClickToPick({ onPick }: { onPick: (lat: number, lng: number) => void }) {
-  useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) });
-  return null;
-}
-
-function PinPicker({ pin, onPick }: { pin: [number, number] | null; onPick: (lat: number, lng: number) => void }) {
-  return (
-    <MapContainer center={pin ?? BAY_AREA_CENTER} zoom={pin ? 15 : 9} className="pin-picker">
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      />
-      <ClickToPick onPick={onPick} />
-      {pin && <CircleMarker center={pin} radius={8} pathOptions={{ color: "#fff", weight: 2, fillColor: "#2ec4a6", fillOpacity: 0.95 }} />}
-    </MapContainer>
   );
 }
 

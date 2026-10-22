@@ -9,7 +9,7 @@ Pins use Muse's own coordinates. There is no Google Places (or any external API)
 ## Stack
 
 - Backend: Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite (`backend/food_map.db`)
-- Frontend: React (Vite) + Leaflet (react-leaflet). Main map basemap: OpenFreeMap vector tiles rendered by MapLibre GL inside Leaflet (`@maplibre/maplibre-gl-leaflet`), no API key. Review page pin picker: CARTO dark raster tiles (street detail helps place pins).
+- Frontend: React (Vite) + Leaflet (react-leaflet). Main map basemap: OpenFreeMap vector tiles rendered by MapLibre GL inside Leaflet (`@maplibre/maplibre-gl-leaflet`), no API key. Review page pin picker (`components/PinPicker.tsx`): OpenFreeMap's full `dark` style (`basemap.StreetBasemap`), since placing a pin needs streets. CARTO's tiles now require an API key, so don't use them.
 - `.env`, `data/*.json` and the SQLite file are gitignored; `personal/my-log.json` is committed on purpose (see Personal data)
 
 ## Folder layout
@@ -44,9 +44,10 @@ frontend/
     captions.ts      dishLine: reel caption → short "what to get" line for place cards
     components/VisitLog.tsx  been-here toggle, star rating, visit date, notes, favorite button
     components/TagEditor.tsx food tags + Edit: toggles, Save / Cancel / Reset to automatic
+    components/PinPicker.tsx small street map: tap to place a pin, or "📍 Use my location"
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     index.css        styles (CSS variables on :root)
-    basemap.tsx      stripped-down vector basemap (see Frontend)
+    basemap.tsx      MinimalBasemap (stripped-down, main map) and StreetBasemap (full detail, pin pickers)
     pages/MapPage.tsx, ReviewPage.tsx, LoginPage.tsx
   public/            manifest.webmanifest + app icons (home-screen install)
   index.html         install tags (manifest, theme-color, apple-* for iPhone)

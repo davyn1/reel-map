@@ -1,8 +1,16 @@
-# reel-map
+# Bay Area Yums Map
 
-A personal map of Bay Area restaurants I've saved from Instagram food reels, with a "been here" checklist.
+A map of Bay Area restaurants saved from Instagram food reels, with a "been here" log for two friends. Saved reels are exported as JSON by Meta's Muse AI, checked and imported into SQLite, and shown on a dark, stripped-down map with a food-icon pin per restaurant. Built for my own use, on the phone, on the go.
 
-Saved reels are exported by Meta's Muse AI as JSON, imported into SQLite, and shown on a dark, stripped-down map (land, water, freeways and city names) with a pin per restaurant showing a food icon (🌮 🍔 🍩 🦞…).
+**Live demo: [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev)**. Click "Try the demo". It uses made-up places, and anything you change resets on its own.
+
+<p>
+  <img src="docs/screenshots/popup-desktop.png" alt="Map with a place's popup: address, food tag, Google Maps link, been-here, stars, visit date, notes, the friend's rating and the reels it was saved from" width="560">
+  <img src="docs/screenshots/map-phone.png" alt="Phone view: stats, search, filters, Pick for me and the clustered map" width="190">
+  <img src="docs/screenshots/review-phone.png" alt="Review page: reels the import couldn't place, with flags explaining what's missing" width="190">
+</p>
+
+## What it does
 
 - **Map:** coral pins are places to try, teal ones are places I've been. Dashed pins are approximate (pop-ups, home cooks, or places Muse could only place in a city). Crowded areas group into count bubbles that split as you zoom. Search by spot, dish or poster, filter by city, pin type or food type (about a dozen broad ones like Korean, Mexican, American, Seafood, Sweets & bakery, worked out from the captions), and tap a pin, or a place in the list below the map, for the address, an "Open in Google Maps" link and the reels that mention it.
 - **Pick for me:** can't decide? 🎲 picks a random place you haven't tried from whatever the search and filters show, flies to it and opens it. "Pick again" never repeats the last one.
@@ -11,7 +19,25 @@ Saved reels are exported by Meta's Muse AI as JSON, imported into SQLite, and sh
 - **Add places yourself:** the ＋ button adds a place by hand: tap the map or use your location for the pin, optionally paste the reel or website. It warns if it's already on the map.
 - **Review:** reels Muse couldn't place, or that cover several spots, wait here. Each shows what's missing from the export (flags like `no_venue` or `multi_spot`) and Muse's note. Fix one by dropping a pin on a small map or attaching it to an existing place, or reject it.
 
-No API keys are needed. Pins use Muse's own coordinates, and the map tiles come from [OpenFreeMap](https://openfreemap.org).
+## How it's built
+
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite. One server serves both the API and the built map.
+- **Frontend:** React 18 and TypeScript (Vite), with Leaflet for the map. The basemap is [OpenFreeMap](https://openfreemap.org) vector tiles drawn by MapLibre GL, restyled to a minimal dark palette: water, freeways and city names only. No API keys anywhere.
+- **Import pipeline:** Muse's JSON is messy (nulls vs. empty strings, ALL-CAPS names, business names in addresses, swapped coordinates, multi-spot reels).
+  - **Flags:** each reel gets flags for what's missing. Rows that can't be placed safely go to a review queue instead of the map.
+  - **Dedup and merging:** duplicates are caught through normalized reel URLs. Places merge only on the same street address *and* a fuzzy name match, since food halls share addresses.
+  - **Bad files:** a broken file stops the import with its line and column, and nothing is written.
+- **Logins:**
+  - **Passwords and sessions:** passwords are hashed with scrypt. Login sessions use HttpOnly cookies, and the database stores only a hash of each session token.
+  - **Lockout:** an account is locked for 15 minutes after 5 wrong passwords.
+  - **Uploads:** Muse can upload new exports with a bearer token.
+- **Phone first:** it installs to the home screen (web app manifest and icons), keeps clear of the iPhone status bar, and is sized for tapping.
+- **Map details:**
+  - **Clustering:** crowded pins group into count bubbles.
+  - **Overlaps:** pins with identical coordinates fan out so each one can be tapped.
+  - **Popup fix:** buttons inside a popup no longer close it, a click-ordering bug between React and Leaflet.
+- **Hosting:** one Docker image on Fly.io. The demo is the same image with `FOOD_MAP_DEMO=true`: a throwaway database rebuilt from sample data on every start and every 24 hours.
+- **Tests:** 96 pytest tests cover the parser, flags, import rules, API, logins and the demo. The frontend is typechecked, and UI flows were checked with real clicks in headless Chrome.
 
 ## Requirements
 
@@ -86,12 +112,15 @@ npm run dev
 
 ## Hosting (Fly.io)
 
-Two apps from one `Dockerfile`: the real map (`fly.toml`, data on a volume) and a public demo with made-up places and a "Try the demo" button (`fly.demo.toml`, resets itself). Fly builds the image remotely.
+Two apps from one `Dockerfile`, built remotely by Fly (no Docker needed locally):
+
+- **Demo** (`fly.demo.toml`): live at [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev). It runs on a single machine, so all visitors share one database and their logins work.
+- **Real map** (`fly.toml`): data on a volume. Not deployed yet.
 
 ```bash
-fly deploy                              # the real app
-fly deploy --config fly.demo.toml       # the demo
-fly ssh console                         # a shell on the server, then:
+fly deploy --config fly.demo.toml --ha=false    # the demo (add --depot=false if the build fails with a certificate error)
+fly deploy                                      # the real map
+fly ssh console                                 # a shell on the server, then:
 cd /app/backend && python -m app.users add davy --name Davy
 ```
 
@@ -136,9 +165,9 @@ cd frontend && npm run typecheck
 **Someday** (bigger ideas, not planned yet)
 - [ ] Trip maps beyond the Bay Area: named maps ("Bay Area", "Tokyo 2027") with a switcher, each built automatically around the restaurants saved in that area (or saved from the current map view), with per-map visits, favorites and Pick for me. Needs the Bay Area assumptions removed first: the `coords_outside_bay_area` flag, the review page's Bay Area check on new pins, the starting view and the title. Food tags may need per-region tuning (in Tokyo most places would just be "Japanese"). Pairs with Near me for "within 2 km of the hotel".
 
-## Personal data in this repo
+## Personal data
 
-The repo is private, and one folder of personal data is committed on purpose: `personal/my-log.json`. It holds what can't be rebuilt from a Muse export: been-here, visit dates, ratings, notes, favorites and hand-picked tags. The app rewrites it after every change; commit it like any other file. Places are matched by reel URL, so it can be restored onto a fresh database:
+What can't be rebuilt from a Muse export lives in a backup file, `personal/my-log.json`: been-here, visit dates, ratings, notes, favorites, hand-picked tags and places added by hand. The app rewrites it after every change. Places are matched by reel URL, so it can be restored onto a fresh database:
 
 ```bash
 # backend/ : after importing the Muse exports on a new machine
@@ -146,24 +175,11 @@ python -m app.backup restore
 python -m app.backup export     # rewrite the log from the database by hand
 ```
 
-Still gitignored: `data/*.json` (Muse exports), the SQLite database and `.env`.
+None of it is in git: `personal/`, the Muse exports in `data/`, the SQLite database and `.env` are all gitignored. Copy `personal/` somewhere safe yourself.
 
-**Rule: personal data goes only in `personal/`.** That keeps it removable in one step.
+## License
 
-### Before making the repo public
-
-Deleting `personal/` in a new commit isn't enough, because every earlier commit still contains it. Either:
-
-- **Simplest:** create a new public repo from a copy of the current files without `personal/` (no history comes along), and keep this private repo as your backup; or
-- **Keep the history, minus personal data:**
-  ```bash
-  pip install git-filter-repo
-  git filter-repo --path personal --invert-paths   # rewrites every commit without personal/
-  echo "personal/" >> .gitignore                   # then keep the log local only
-  git remote add origin https://github.com/davyn1/reel-map.git   # filter-repo removes the remote
-  git push --force origin main
-  ```
-  Anyone who already cloned the repo keeps the old history, so do this before sharing it.
+[MIT](LICENSE)
 
 ## More detail
 

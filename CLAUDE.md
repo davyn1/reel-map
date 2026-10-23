@@ -10,7 +10,7 @@ Pins use Muse's own coordinates. There is no Google Places (or any external API)
 
 - Backend: Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite (`backend/food_map.db`)
 - Frontend: React (Vite) + Leaflet (react-leaflet). Main map basemap: OpenFreeMap vector tiles rendered by MapLibre GL inside Leaflet (`@maplibre/maplibre-gl-leaflet`), no API key. Pin pickers (add-a-place, review page): OpenFreeMap's full `dark` style (`basemap.StreetBasemap`), since placing a pin needs streets. CARTO's tiles now require an API key, so don't use them.
-- `.env`, `data/*.json` and the SQLite file are gitignored; `personal/my-log.json` is committed on purpose (see Personal data)
+- `.env`, `data/*.json`, `personal/` and the SQLite file are gitignored. The repo is public, so no personal data or secrets go in it
 
 ## Folder layout
 
@@ -55,7 +55,9 @@ frontend/
 data/                Muse exports (gitignored)
 Dockerfile           one image for both Fly apps (builds the map, then the Python server)
 fly.toml             the real app (volume at /data); fly.demo.toml: the public demo (no volume)
-personal/            my-log.json: your log, committed on purpose (see Personal data)
+personal/            my-log.json: the personal backup (gitignored; see Personal data)
+docs/screenshots/    README screenshots, taken from the demo (made-up data only)
+LICENSE              MIT
 ```
 
 ## How to run
@@ -129,7 +131,8 @@ One place has many reels. The Google Maps link is computed (not stored) from nam
 ## Personal data
 
 `personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 2: `users.<username>.places[]` (been-here, visit date, rating, notes, favorite), a shared `tags[]` (hand-picked tags), and `manual_places[]` (places added by hand, which no Muse export can rebuild; restore recreates them first). Version-1 files (before logins, one person) still restore, into `--user` (default: the first account).
-- **All personal data in the repo goes under `personal/`, nowhere else.** The README's "Before making the repo public" steps rely on this to strip it in one go.
+- **Personal data goes under `personal/` (gitignored), nowhere else.** The repo is public: never commit real exports, the database, the log, real names or screenshots of the real map. README screenshots come from the demo.
+- Earlier commits contain only an empty `my-log.json`, so the history is clean.
 - Places are keyed by their reels' post URLs, never database IDs, so a restore works after a fresh import.
 - Output is sorted with no timestamps, and the file is only rewritten when its content changes, so diffs show only real edits.
 - New per-place personal fields must be added to `backup._entry` and `backup.restore_log`, or they won't be backed up.
@@ -250,9 +253,9 @@ Testing note: the Claude browser pane does not run `requestAnimationFrame` while
 
 ## Hosting and the demo
 
-Two Fly.io apps from the same image (`Dockerfile`; Fly builds it remotely, no Docker needed locally):
+Two Fly.io apps from the same image (`Dockerfile`; Fly builds it remotely, no Docker needed locally). On this PC, deploy with `--depot=false`: the Depot builder fails with a TLS "unknown authority" error.
 - **Real app** (`fly.toml`, `fly deploy`): database, uploads and `my-log.json` on the `yums_data` volume at `/data`. `FOOD_MAP_IMPORT_TOKEN` is a Fly secret. Accounts are made on the server: `fly ssh console`, then `cd /app/backend && python -m app.users add …` (it asks for the password, so it needs the interactive shell).
-- **Public demo** (`fly.demo.toml`, `fly deploy --config fly.demo.toml`), `FOOD_MAP_DEMO=true`, for the resume link. `app/demo`:
+- **Public demo** (`fly.demo.toml`), `FOOD_MAP_DEMO=true`, for the resume link. Live at https://yums-map-demo.fly.dev. Deploy with `fly deploy --config fly.demo.toml --remote-only --ha=false --depot=false`. Keep it to **one machine** (`--ha=false`): each machine has its own database, so a second one would split visitors' logins and data. `app/demo`:
   - On every start (machines sleep when idle, so often) and every 24 h, `demo.reset()` drops all tables and refills them: `sample_reels.json` (made-up places in Muse's format, including pop-ups and 3 reels for the review page) through the normal importer, accounts `demo` (password public, on purpose) and `sam` (the friend; random password), and a few visits for each.
   - `GET /api/demo` (public; 404 on the real app) returns the demo login; the login page shows "Try the demo" and the title bar a "Demo · made-up places · source code" line.
   - Uploads are 403; the demo accounts are exempt from login lockout (otherwise one visitor could lock everyone out). Everything else works, and is wiped at the next reset.

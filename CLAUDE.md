@@ -56,6 +56,9 @@ data/                Muse exports (gitignored)
 Dockerfile           one image for both Fly apps (builds the map, then the Python server)
 fly.toml             the real app (volume at /data); fly.demo.toml: the public demo (no volume)
 personal/            my-log.json: the personal backup (gitignored; see Personal data)
+README.md            the public front page: demo link, screenshots, features, highlights, quick start
+ROADMAP.md           to-do list (open items, ideas, someday, done)
+docs/setup.md        accounts, importing, upload endpoint, running, hosting, backups, tests
 docs/screenshots/    README screenshots, taken from the demo (made-up data only)
 LICENSE              MIT
 ```
@@ -159,7 +162,7 @@ JSON array of objects with keys: venue, address, city, lat, lng, post_url, poste
 
 - `post_url` is unique. Re-importing only adds new reels; existing post_urls are skipped (counted as skipped), never updated or duplicated.
 - Blocking flags (`no_venue`, `no_coords`, `coords_outside_bay_area`, `no_confidence`) or confidence `none` → reel `needs_review`, no place. `review_reason` says why.
-- confidence `low`, or a `city_only_address` at any confidence → place with `is_approximate = true` at Muse's coordinates. Approximate places dedupe on normalized venue name + city (two reels of one pop-up share a place; two different pop-ups pinned to Oakland do not; one pop-up in two cities is two places).
+- confidence `low`, or a `city_only_address` at any confidence → place with `is_approximate = true` at Muse's coordinates (typically pop-ups, home cooks, or places Muse could only pin to a city). Approximate places dedupe on normalized venue name + city (two reels of one pop-up share a place; two different pop-ups pinned to Oakland do not; one pop-up in two cities is two places).
 - confidence `high` / `medium` with a street address → place at Muse's coordinates, `is_approximate = false`.
 - Never dedupe places by name alone (names vary: "Stans Donuts" vs "Stan's Doughnut" at one address). Non-approximate places merge only on the same normalized street address **and** name score ≥ 80 (`matching.MIN_MERGE_NAME_SCORE`). Address alone never merges (food halls and malls share addresses).
 - Multi-spot reels: import the pinned place normally, but set the reel to `needs_review` so other spots can be added.

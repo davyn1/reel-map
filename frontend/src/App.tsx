@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, AUTH_REQUIRED_EVENT, type Me, type Stats } from "./api";
+import { api, AUTH_REQUIRED_EVENT, type DemoInfo, type Me, type Stats } from "./api";
 import AddPlacePage from "./pages/AddPlacePage";
 import LoginPage from "./pages/LoginPage";
 import MapPage from "./pages/MapPage";
@@ -29,9 +29,11 @@ export default function App() {
   const [focusId, setFocusId] = useState<number | null>(focusFromHash);
   const [stats, setStats] = useState<Stats | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [demo, setDemo] = useState<DemoInfo | null>(null);
 
   useEffect(() => {
     api.me().then(setMe).catch(() => setMe(null));
+    api.demoInfo().then(setDemo).catch(() => setDemo(null)); // 404 on the real app
     // Any API call that comes back 401 (expired or revoked login) drops back to the login screen.
     const onAuthRequired = () => setMe(null);
     window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
@@ -66,7 +68,7 @@ export default function App() {
   if (me === null) {
     return (
       <div className="app">
-        <LoginPage onLogin={setMe} />
+        <LoginPage onLogin={setMe} demo={demo} />
       </div>
     );
   }
@@ -103,6 +105,14 @@ export default function App() {
           )}
         </div>
       </header>
+      {demo && (
+        <p className="demo-banner">
+          Demo · made-up places ·{" "}
+          <a href={demo.source_url} target="_blank" rel="noreferrer">
+            source code
+          </a>
+        </p>
+      )}
       {route === "map" && (
         <MapPage
           key={me.username}

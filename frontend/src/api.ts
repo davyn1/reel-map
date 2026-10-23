@@ -37,6 +37,13 @@ export interface Me {
   display_name: string;
 }
 
+/** The public demo's login (GET /api/demo); that call fails on the real app. */
+export interface DemoInfo {
+  username: string;
+  password: string;
+  source_url: string;
+}
+
 /** A place added by hand (POST /api/places). */
 export interface CreatePlace {
   name: string;
@@ -165,6 +172,7 @@ export const api = {
   login: (username: string, password: string) =>
     request<Me>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+  demoInfo: () => request<DemoInfo>("/api/demo"),
   places: () => request<Place[]>("/api/places"),
   createPlace: (body: CreatePlace) => request<Place>("/api/places", { method: "POST", body: JSON.stringify(body) }),
   updateVisit: (placeId: number, update: VisitUpdate) =>

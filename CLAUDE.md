@@ -25,6 +25,7 @@ backend/
     backup.py        personal/my-log.json: export after every change, restore onto a fresh DB
     auth.py          password hashing (scrypt), session cookies, require_user, login lockout
     users.py         CLI: add / passwd / list / remove accounts (no sign-up page)
+    demo/            public demo mode: sample_reels.json (made-up places) + reset()
     tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
     routers/         auth.py (login/logout/me), imports.py (Muse upload, recent imports), places.py, reels.py (review queue)
@@ -52,6 +53,8 @@ frontend/
   public/            manifest.webmanifest + app icons (home-screen install)
   index.html         install tags (manifest, theme-color, apple-* for iPhone)
 data/                Muse exports (gitignored)
+Dockerfile           one image for both Fly apps (builds the map, then the Python server)
+fly.toml             the real app (volume at /data); fly.demo.toml: the public demo (no volume)
 personal/            my-log.json: your log, committed on purpose (see Personal data)
 ```
 
@@ -92,6 +95,7 @@ Settings come from environment variables (or `.env`), so the hosted server can p
 | `FOOD_MAP_FRONTEND_DIST` | `frontend/dist/` | built map served at `/` |
 | `FOOD_MAP_CORS_ORIGINS` | the Vite dev origins | comma-separated |
 | `FOOD_MAP_IMPORT_TOKEN` | unset (token uploads off) | secret Muse sends as `Authorization: Bearer …` to `POST /api/import`; set it as a host secret, never commit it |
+| `FOOD_MAP_DEMO` | unset | `true` makes this server the public demo (see Demo); never set it on the real app |
 | `FOOD_MAP_COOKIE_SECURE` | `true` | login cookie only over https; set `false` in `.env` for plain-http local use in browsers other than Chrome |
 
 `GET /api/health` returns `{"status": "ok"}`.
@@ -181,7 +185,7 @@ Where to see flags:
 
 ## Logins and friend mode
 
-- Every `/api/*` route needs a login (`auth.require_user`, set on the `places` and `reels` routers), except `GET /api/health` and `POST /api/auth/login`. Anything new under `/api/` must stay behind it.
+- Every `/api/*` route needs a login (`auth.require_user`, set on the `places` and `reels` routers), except `GET /api/health`, `GET /api/demo` and `POST /api/auth/login`. Anything new under `/api/` must stay behind it.
 - Login sets an HttpOnly, SameSite=Lax cookie `yums_session` (Secure unless `FOOD_MAP_COOKIE_SECURE=false`), valid 60 days. Logout deletes the session server-side. Changing a password (`app.users passwd`) logs out every device.
 - Wrong passwords: 5 for one username locks it for 15 minutes (`auth.LoginThrottle`, in memory). Unknown usernames get the same "Wrong username or password." error.
 - Visits are per person (the logged-in username); each place also carries `others[]`, the other person's log (only if they logged something). Hand-picked food tags and review-queue actions are shared.
@@ -244,6 +248,16 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
 
 Testing note: the Claude browser pane does not run `requestAnimationFrame` while hidden, so Leaflet/MapLibre draw nothing (paths are `M0 0`) and map clicks convert to wrong coordinates there. For screenshots, drive headless Chrome over the DevTools protocol (real waits + `Emulation.setDeviceMetricsOverride` for phone size). Don't use `--virtual-time-budget`: it stalls MapLibre's workers and the basemap comes out blank. Plain `--window-size` can't go below ~500px wide on Windows. Test clicks with CDP `Input.dispatchMouseEvent` (real pointer events and hit-testing), not `el.click()`/`dispatchEvent`: synthetic clicks hid the popup-closing bug where a button that removes itself on click looked like a map click to Leaflet.
 
+## Hosting and the demo
+
+Two Fly.io apps from the same image (`Dockerfile`; Fly builds it remotely, no Docker needed locally):
+- **Real app** (`fly.toml`, `fly deploy`): database, uploads and `my-log.json` on the `yums_data` volume at `/data`. `FOOD_MAP_IMPORT_TOKEN` is a Fly secret. Accounts are made on the server: `fly ssh console`, then `cd /app/backend && python -m app.users add …` (it asks for the password, so it needs the interactive shell).
+- **Public demo** (`fly.demo.toml`, `fly deploy --config fly.demo.toml`), `FOOD_MAP_DEMO=true`, for the resume link. `app/demo`:
+  - On every start (machines sleep when idle, so often) and every 24 h, `demo.reset()` drops all tables and refills them: `sample_reels.json` (made-up places in Muse's format, including pop-ups and 3 reels for the review page) through the normal importer, accounts `demo` (password public, on purpose) and `sam` (the friend; random password), and a few visits for each.
+  - `GET /api/demo` (public; 404 on the real app) returns the demo login; the login page shows "Try the demo" and the title bar a "Demo · made-up places · source code" line.
+  - Uploads are 403; the demo accounts are exempt from login lockout (otherwise one visitor could lock everyone out). Everything else works, and is wiped at the next reset.
+  - Its database lives in `/tmp` inside the machine: never point it at real data.
+
 ## Out of scope (for now)
 
-Public sign-up, more than a couple of users, Google Places verification. (Logins for two people are in; deployment is in progress: see the README to-do list.)
+Public sign-up, more than a couple of users, Google Places verification.

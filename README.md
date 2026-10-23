@@ -84,6 +84,17 @@ uvicorn app.main:app --reload
 npm run dev
 ```
 
+## Hosting (Fly.io)
+
+Two apps from one `Dockerfile`: the real map (`fly.toml`, data on a volume) and a public demo with made-up places and a "Try the demo" button (`fly.demo.toml`, resets itself). Fly builds the image remotely.
+
+```bash
+fly deploy                              # the real app
+fly deploy --config fly.demo.toml       # the demo
+fly ssh console                         # a shell on the server, then:
+cd /app/backend && python -m app.users add davy --name Davy
+```
+
 ## Tests
 
 ```bash

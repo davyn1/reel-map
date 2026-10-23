@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import COOKIE_NAME, COOKIE_SECURE, SESSION_DAYS, create_session, end_session, require_user, throttle, verify_password
+from app import demo
 from app.db import get_session
 from app.models import User
 
@@ -23,12 +24,15 @@ class MeOut(BaseModel):
 @router.post("/login", response_model=MeOut)
 def login(body: LoginIn, response: Response, session: Session = Depends(get_session)):
     username = body.username.strip().lower()
-    wait = throttle.locked_for(username)
+    # The demo login is public; a lockout would only let one visitor lock everyone else out.
+    guarded = not (demo.DEMO and username in (demo.DEMO_USERNAME, demo.FRIEND_USERNAME))
+    wait = guarded and throttle.locked_for(username)
     if wait:
         raise HTTPException(429, f"Too many wrong passwords. Try again in {max(1, wait // 60)} min.")
     user = session.scalars(select(User).where(func.lower(User.username) == username)).first()
     if user is None or not verify_password(body.password, user.password_hash):
-        throttle.failed(username)
+        if guarded:
+            throttle.failed(username)
         raise HTTPException(401, "Wrong username or password.")
     throttle.succeeded(username)
     token = create_session(session, user)

@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import backup
+from app import backup, demo
 from app.auth import COOKIE_NAME, require_user, user_for_token
 from app.config import DATA_DIR
 from app.db import get_session
@@ -43,6 +43,8 @@ def import_token() -> str:
 
 def allow_upload(request: Request, session: Session = Depends(get_session)) -> str:
     """The upload's source: "muse" for a valid token, the username for a logged-in person, else 401/503."""
+    if demo.DEMO:
+        raise HTTPException(403, "Uploads are off in the demo.")
     header = request.headers.get("authorization", "")
     if header.lower().startswith("bearer "):
         expected = import_token()

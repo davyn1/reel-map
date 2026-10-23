@@ -230,6 +230,11 @@ a.chip:hover, button.chip:hover { border-color: var(--muted); }
 .login-form input { width: 100%; }
 .login-form button { padding: 12px; font-size: 1rem; }
 .login-error { margin: 0; color: var(--danger); font-size: 0.9rem; }
+.demo-intro { display: grid; gap: 12px; margin: -6px 0 26px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.demo-intro p { margin: 0; font-size: 0.9rem; line-height: 1.45; }
+.demo-intro button { padding: 12px; font-size: 1rem; }
+.demo-intro code { color: var(--text); }
+.demo-banner { margin: -4px 0 12px; padding: 8px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; text-align: center; }
 
 .user-menu { position: relative; }
 .icon-btn.avatar { font-size: 1.05rem; font-weight: 700; background: var(--visited); color: #0d2a24; cursor: pointer; }

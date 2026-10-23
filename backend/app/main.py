@@ -1,11 +1,13 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app import demo
 from app.config import CORS_ORIGINS, FRONTEND_DIST
 from app.db import init_db
 from app.routers import auth, imports, places, reels
@@ -14,7 +16,15 @@ from app.routers import auth, imports, places, reels
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    if not demo.DEMO:
+        yield
+        return
+    demo.reset()
+    task = asyncio.create_task(demo.reset_periodically())
     yield
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
 
 
 def mount_frontend(app: FastAPI, dist: Path) -> bool:
@@ -42,6 +52,14 @@ app.include_router(reels.router)
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/demo")
+def demo_info() -> dict[str, str]:
+    """Public: the demo login for the login screen. 404 unless this server is the demo."""
+    if not demo.DEMO:
+        raise HTTPException(404, "not the demo")
+    return {"username": demo.DEMO_USERNAME, "password": demo.DEMO_PASSWORD, "source_url": demo.SOURCE_URL}
 
 
 mount_frontend(app, FRONTEND_DIST)

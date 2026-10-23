@@ -1,18 +1,17 @@
 import { useState } from "react";
-import { api, type Me } from "../api";
+import { api, type DemoInfo, type Me } from "../api";
 
-export default function LoginPage({ onLogin }: { onLogin: (me: Me) => void }) {
+export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void; demo: DemoInfo | null }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function logIn(user: string, pass: string) {
     setBusy(true);
     setError(null);
     try {
-      onLogin(await api.login(username, password));
+      onLogin(await api.login(user, pass));
     } catch (err) {
       // "401: Wrong username or password." -> "Wrong username or password."
       setError(String(err).replace(/^Error:\s*\d+:\s*/, ""));
@@ -22,10 +21,32 @@ export default function LoginPage({ onLogin }: { onLogin: (me: Me) => void }) {
     }
   }
 
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    logIn(username, password);
+  }
+
   return (
     <main className="login-page">
       <img src="/icon-192.png" alt="" className="login-icon" width={96} height={96} />
       <h1>Bay Area Yums Map</h1>
+      {demo && (
+        <div className="demo-intro">
+          <p>
+            A map of restaurants saved from Instagram food reels, with a been-here log for two friends. This demo
+            uses made-up places; anything you change is reset later.
+          </p>
+          <button className="primary" disabled={busy} onClick={() => logIn(demo.username, demo.password)}>
+            Try the demo
+          </button>
+          <p className="muted">
+            or log in below as <code>{demo.username}</code> / <code>{demo.password}</code> ·{" "}
+            <a href={demo.source_url} target="_blank" rel="noreferrer">
+              source code
+            </a>
+          </p>
+        </div>
+      )}
       <form className="login-form" onSubmit={submit}>
         <label>
           Username

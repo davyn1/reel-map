@@ -112,10 +112,10 @@ class VisitIn(BaseModel):
 
 
 class NewPlace(BaseModel):
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=120)
     lat: float
     lng: float
-    address: str | None = None
+    address: str | None = Field(None, max_length=300)
     is_approximate: bool = False
 
 

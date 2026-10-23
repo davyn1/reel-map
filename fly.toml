@@ -1,0 +1,36 @@
+# The real map: your and your friend's logins and logs. Deploy with `fly deploy`.
+# Data lives on the "yums_data" volume, mounted at /data, so it survives deploys and restarts.
+# Secrets (set once, never committed): fly secrets set FOOD_MAP_IMPORT_TOKEN=...
+
+app = "yums-map"
+primary_region = "sjc"
+
+[build]
+
+[env]
+  DATABASE_URL = "sqlite:////data/food_map.db"
+  FOOD_MAP_EXPORTS_DIR = "/data/exports"
+  FOOD_MAP_PERSONAL_DIR = "/data/personal"
+
+[mounts]
+  source = "yums_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Sleeps when nobody's using it and wakes on the next visit (a second or two).
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

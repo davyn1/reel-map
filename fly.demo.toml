@@ -1,0 +1,32 @@
+# The public demo: made-up places and a demo login anyone can use (see backend/app/demo).
+# Deploy with `fly deploy --config fly.demo.toml`. No volume: the database is rebuilt from the
+# sample data every time the server starts (it sleeps when idle, so that's often) and every 24 h.
+
+app = "yums-map-demo"
+primary_region = "sjc"
+
+[build]
+
+[env]
+  FOOD_MAP_DEMO = "true"
+  DATABASE_URL = "sqlite:////tmp/demo.db"
+  FOOD_MAP_EXPORTS_DIR = "/tmp/exports"
+  FOOD_MAP_PERSONAL_DIR = "/tmp/personal"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

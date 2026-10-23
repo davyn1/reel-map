@@ -13,7 +13,7 @@ Everything needed to run, fill, deploy and back up the map. For the data model, 
 # backend
 cd backend
 python -m venv .venv
-.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # frontend
@@ -62,13 +62,16 @@ curl -X POST https://<your-app>/api/import \
 
 ## Running locally
 
-Two terminals:
+Two terminals, from the repo root:
 
 ```bash
-# backend/ : API on http://localhost:8000 (docs at /docs)
+# API on http://localhost:8000 (docs at /docs)
+cd backend
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 uvicorn app.main:app --reload
 
-# frontend/ : app on http://localhost:5173
+# app on http://localhost:5173 (second terminal)
+cd frontend
 npm run dev
 ```
 

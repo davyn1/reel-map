@@ -2,7 +2,7 @@
 
 ## Using it
 
-- [ ] Open it on a phone: reachable over home Wi-Fi and installable to the home screen
+- [ ] Try it on a real phone: the home-screen install is built (manifest, icons, iPhone status bar) but untested on a device. Needs the real map reachable from the phone (Tailscale, or deploying `fly.toml`)
 - [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
 - [ ] Live sync between the two of us: an open app picks up the other person's changes (new places, been-here, ratings) within seconds, without refreshing. Data is already shared once hosted; this is about seeing it live
 

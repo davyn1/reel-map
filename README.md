@@ -4,10 +4,10 @@ A phone-first map of Bay Area restaurants saved from Instagram food reels, with 
 
 **Live demo: [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev)**. Click "Try the demo". It uses made-up places, and anything you change resets on its own.
 
-<p>
-  <img src="docs/screenshots/popup-desktop.png" alt="Map with a place's popup: address, food tag, Google Maps link, been-here, stars, visit date, notes, the friend's rating and the reels it was saved from" width="560">
-  <img src="docs/screenshots/map-phone.png" alt="Phone view: stats, search, filters, Pick for me and the clustered map" width="190">
-  <img src="docs/screenshots/review-phone.png" alt="Review page: reels the import couldn't place, with flags explaining what's missing" width="190">
+<p align="center">
+  <img src="docs/screenshots/popup-desktop.png" alt="Map with a place's popup: address, food tag, Google Maps link, been-here, stars, visit date, notes, the friend's rating and the reels it was saved from" width="480">
+  <img src="docs/screenshots/map-phone.png" alt="Phone view: stats, search, filters, Pick for me and the clustered map" width="150">
+  <img src="docs/screenshots/review-phone.png" alt="Review page: reels the import couldn't place, with flags explaining what's missing" width="150">
 </p>
 
 ## Features

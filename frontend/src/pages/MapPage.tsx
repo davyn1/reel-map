@@ -330,25 +330,25 @@ export default function MapPage({
 
   return (
     <>
+      {/* Only chips that do something: two toggle a pin filter, one opens the review page. */}
       <div className="chips">
-        <span className="chip">
-          <b>{stats?.reels_saved ?? "–"}</b> reels saved
-        </span>
-        <span className="chip">
-          <b>{stats?.on_map ?? places?.length ?? "–"}</b> on the map
-        </span>
-        <span className="chip">
-          <b>{stats?.cities ?? cities.length}</b> cities
-        </span>
-        <button className="chip" onClick={() => setPinType(pinType === "visited" ? "all" : "visited")}>
+        <button
+          className={`chip chip-visited${pinType === "visited" ? " on" : ""}`}
+          aria-pressed={pinType === "visited"}
+          onClick={() => setPinType(pinType === "visited" ? "all" : "visited")}
+        >
           <b>{stats?.visited ?? 0}</b> been there
         </button>
-        <button className="chip" onClick={() => setPinType(pinType === "favorites" ? "all" : "favorites")}>
+        <button
+          className={`chip chip-fav${pinType === "favorites" ? " on" : ""}`}
+          aria-pressed={pinType === "favorites"}
+          onClick={() => setPinType(pinType === "favorites" ? "all" : "favorites")}
+        >
           <b>{stats?.favorites ?? 0}</b> favorites
         </button>
         {stats && stats.needs_review > 0 && (
-          <a className="chip" href="#/review">
-            <b>{stats.needs_review}</b> waiting for review
+          <a className="chip chip-review" href="#/review">
+            <b>{stats.needs_review}</b> to review
           </a>
         )}
       </div>

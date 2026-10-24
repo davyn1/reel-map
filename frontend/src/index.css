@@ -58,7 +58,18 @@ select { appearance: none; padding-right: 34px; background-image: linear-gradien
 }
 .chip b { color: var(--text); font-weight: 600; }
 button.chip { font-size: 0.95rem; cursor: pointer; }
-a.chip:hover, button.chip:hover { border-color: var(--muted); }
+/* Each chip takes its color from what it filters: teal = been here, gold = favorites, amber = review. */
+.chip-visited { --chip: var(--visited); }
+.chip-fav { --chip: var(--fav); }
+.chip-review { --chip: var(--warn); }
+.chip-visited, .chip-fav, .chip-review {
+  color: var(--chip); border-color: color-mix(in srgb, var(--chip) 45%, transparent);
+  background: color-mix(in srgb, var(--chip) 10%, transparent);
+}
+.chip-visited b, .chip-fav b, .chip-review b { color: var(--chip); }
+a.chip:hover, button.chip:hover { border-color: var(--chip, var(--muted)); }
+.chip.on { background: var(--chip); border-color: var(--chip); color: #161616; }
+.chip.on b { color: #161616; }
 
 .tag-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; scrollbar-width: thin; }
 .tag-chip { flex: none; padding: 5px 12px; font-size: 0.85rem; background: transparent; color: var(--text); }

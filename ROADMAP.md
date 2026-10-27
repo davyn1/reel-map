@@ -39,3 +39,10 @@
 - [x] Pick for me: one button that picks a random to-try place matching the current filters and flies to it
 - [x] Add a place by hand: name, optional link and address, pin from the map, your location or coordinates; warns about duplicates; shows "added by …"
 - [x] Friend mode: separate been-here, ratings and favorites per person, plus a "Both want to go" filter
+- [x] Logins: username and password per person (no sign-up page), session cookies, lockout after 5 wrong passwords
+- [x] Upload endpoint: `POST /api/import` takes a Muse export with a secret token, and the map shows when the last import happened and what it added
+- [x] Ready to host: one server for the API and the map, settings from environment variables, a Dockerfile and Fly.io configs
+- [x] Public demo at [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev): made-up places, a "Try the demo" button, resets on its own
+- [x] Repo made public: personal data kept out of git, README with the demo and screenshots, MIT license
+- [x] Food type tags (about a dozen broad ones) with hand editing, food-icon pins, clustering, visit log with stars, dates and notes, and favorites
+- [x] Stat chips trimmed to the ones you can tap, colored like the pins they filter

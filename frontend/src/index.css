@@ -245,6 +245,9 @@ a.chip:hover, button.chip:hover { border-color: var(--chip, var(--muted)); }
 .demo-intro p { margin: 0; font-size: 0.9rem; line-height: 1.45; }
 .demo-intro button { padding: 12px; font-size: 1rem; }
 .demo-intro code { color: var(--text); }
+.demo-login { display: grid; grid-template-columns: auto auto; justify-content: center; gap: 4px 12px; margin: -4px 0 0; font-size: 0.9rem; }
+.demo-login dt { color: var(--muted); text-align: right; }
+.demo-login dd { margin: 0; text-align: left; }
 .demo-banner { margin: -4px 0 12px; padding: 8px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; text-align: center; }
 
 .user-menu { position: relative; }

@@ -39,10 +39,20 @@ export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void
           <button className="primary" disabled={busy} onClick={() => logIn(demo.username, demo.password)}>
             Try the demo
           </button>
+          <p className="muted">Or log in below with:</p>
+          <dl className="demo-login">
+            <dt>Username</dt>
+            <dd>
+              <code>{demo.username}</code>
+            </dd>
+            <dt>Password</dt>
+            <dd>
+              <code>{demo.password}</code>
+            </dd>
+          </dl>
           <p className="muted">
-            or log in below as <code>{demo.username}</code> / <code>{demo.password}</code> ·{" "}
             <a href={demo.source_url} target="_blank" rel="noreferrer">
-              source code
+              Source code on GitHub
             </a>
           </p>
         </div>

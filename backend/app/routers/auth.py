@@ -12,8 +12,12 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class LoginIn(BaseModel):
-    username: str
+    username: str = ""  # may be left out when the server has a single account (passcode login)
     password: str
+
+
+class ModeOut(BaseModel):
+    passcode: bool
 
 
 class MeOut(BaseModel):
@@ -21,9 +25,27 @@ class MeOut(BaseModel):
     display_name: str
 
 
+def _only_user(session: Session) -> User | None:
+    """The single account, when there's exactly one (and this isn't the demo, which has two)."""
+    users = session.scalars(select(User).limit(2)).all()
+    return users[0] if len(users) == 1 and not demo.DEMO else None
+
+
+@router.get("/mode", response_model=ModeOut)
+def mode(session: Session = Depends(get_session)):
+    """Public: with a single account, the login screen asks only for its password (the passcode)."""
+    return ModeOut(passcode=_only_user(session) is not None)
+
+
 @router.post("/login", response_model=MeOut)
 def login(body: LoginIn, response: Response, session: Session = Depends(get_session)):
     username = body.username.strip().lower()
+    passcode = not username
+    if passcode:
+        only = _only_user(session)
+        if only is None:
+            raise HTTPException(422, "Enter a username.")
+        username = only.username
     # The demo login is public; a lockout would only let one visitor lock everyone else out.
     guarded = not (demo.DEMO and username in (demo.DEMO_USERNAME, demo.FRIEND_USERNAME))
     wait = guarded and throttle.locked_for(username)
@@ -33,7 +55,7 @@ def login(body: LoginIn, response: Response, session: Session = Depends(get_sess
     if user is None or not verify_password(body.password, user.password_hash):
         if guarded:
             throttle.failed(username)
-        raise HTTPException(401, "Wrong username or password.")
+        raise HTTPException(401, "Wrong passcode." if passcode else "Wrong username or password.")
     throttle.succeeded(username)
     token = create_session(session, user)
     response.set_cookie(

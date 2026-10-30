@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type DemoInfo, type Me } from "../api";
 
 export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void; demo: DemoInfo | null }) {
@@ -6,6 +6,12 @@ export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Shared single account: just a passcode box. Falls back to username + password if the check fails.
+  const [passcode, setPasscode] = useState(false);
+
+  useEffect(() => {
+    api.authMode().then((m) => setPasscode(m.passcode)).catch(() => setPasscode(false));
+  }, []);
 
   async function logIn(user: string, pass: string) {
     setBusy(true);
@@ -23,7 +29,7 @@ export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    logIn(username, password);
+    logIn(passcode ? "" : username, password);
   }
 
   return (
@@ -58,27 +64,31 @@ export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void
         </div>
       )}
       <form className="login-form" onSubmit={submit}>
+        {!passcode && (
+          <label>
+            Username
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+              autoFocus
+            />
+          </label>
+        )}
         <label>
-          Username
+          {passcode ? "Passcode" : "Password"}
           <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            required
-            autoFocus
-          />
-        </label>
-        <label>
-          Password
-          <input
+            key={passcode ? "passcode" : "password"}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             required
+            autoFocus={passcode}
           />
         </label>
         {error && (
@@ -86,7 +96,7 @@ export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void
             {error}
           </p>
         )}
-        <button type="submit" className="primary" disabled={busy || !username || !password}>
+        <button type="submit" className="primary" disabled={busy || (!passcode && !username) || !password}>
           {busy ? "Logging in…" : "Log in"}
         </button>
       </form>

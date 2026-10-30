@@ -34,6 +34,8 @@ python -m app.users passwd davy       # change a password (logs that person out 
 
 The first account you make takes over anything logged before logins existed.
 
+With exactly one account (say, one shared by two friends), the login screen asks only for a **passcode**: that account's password. Add a second account and the username box comes back.
+
 ## Importing reels
 
 Put Muse exports in `data/` as `reels.json`, or as several files named `reels*.json`. Then, from `backend/`:
@@ -80,7 +82,7 @@ npm run dev
 Two apps from one `Dockerfile`, built remotely by Fly (no Docker needed locally):
 
 - **Demo** (`fly.demo.toml`): live at [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev). Runs with `FOOD_MAP_DEMO=true` on a single machine, so all visitors share one database and their logins work. The database is rebuilt from sample data on every start and every 24 hours.
-- **Real map** (`fly.toml`): data on a volume. Not deployed yet.
+- **Real map** (`fly.toml`): deployed, login only, with its data on a 1 GB volume that Fly snapshots daily (kept 5 days).
 
 ```bash
 fly deploy --config fly.demo.toml --ha=false    # the demo (add --depot=false if the build fails with a certificate error)

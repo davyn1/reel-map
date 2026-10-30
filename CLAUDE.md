@@ -191,8 +191,9 @@ Where to see flags:
 
 ## Logins and friend mode
 
-- Every `/api/*` route needs a login (`auth.require_user`, set on the `places` and `reels` routers), except `GET /api/health`, `GET /api/demo` and `POST /api/auth/login`. Anything new under `/api/` must stay behind it.
+- Every `/api/*` route needs a login (`auth.require_user`, set on the `places` and `reels` routers), except `GET /api/health`, `GET /api/demo`, `GET /api/auth/mode` and `POST /api/auth/login`. Anything new under `/api/` must stay behind it.
 - Login sets an HttpOnly, SameSite=Lax cookie `yums_session` (Secure unless `FOOD_MAP_COOKIE_SECURE=false`), valid 60 days. Logout deletes the session server-side. Changing a password (`app.users passwd`) logs out every device.
+- Passcode login: when the server has exactly one account (and isn't the demo), `GET /api/auth/mode` returns `{"passcode": true}` and the login screen shows only a "Passcode" box; `POST /api/auth/login` without a username logs into that account ("Wrong passcode." on failure, 422 "Enter a username." once there are two accounts). The real map uses this: one account shared by the owner and a friend, so friend mode has nothing to show there. A username still works too.
 - Wrong passwords: 5 for one username locks it for 15 minutes (`auth.LoginThrottle`, in memory). Unknown usernames get the same "Wrong username or password." error.
 - Visits are per person (the logged-in username); each place also carries `others[]`, the other person's log (only if they logged something). Hand-picked food tags and review-queue actions are shared.
 - Tests patch `routers.imports.DATA_DIR` to a temp dir (autouse fixture), so uploads never land in the real `data/`.
@@ -202,7 +203,8 @@ Where to see flags:
 
 Interactive docs at http://localhost:8000/docs while the server runs.
 
-- `POST /api/auth/login` `{"username", "password"}` → sets the cookie, returns `{username, display_name}`; 401 wrong login, 429 locked out
+- `POST /api/auth/login` `{"username"?, "password"}` → sets the cookie, returns `{username, display_name}`; 401 wrong login, 429 locked out. No username = passcode login (single account only, else 422)
+- `GET /api/auth/mode` (public) → `{"passcode": bool}`: true when there's exactly one account and this isn't the demo
 - `POST /api/auth/logout` (204), `GET /api/auth/me` → `{username, display_name}` or 401
 - `POST /api/import` — Muse's upload: body is the export JSON. Auth: `Authorization: Bearer <FOOD_MAP_IMPORT_TOKEN>` (503 if no token is configured, 401 if wrong) or a logged-in session. Saves the body as `data/reels-upload-<UTC time>-<random>.json` first, then runs the normal import (known reels skipped). Returns `{saved_as, imported, pinned, approximate, needs_review, pinned_needing_review, skipped, merged, flags, skipped_details}`. 400 with line/column on bad JSON (file kept as `.invalid`), 413 over 5 MB, 409 if an import is already running.
 - `GET /api/imports?limit=` — recent import runs, newest first (login required)

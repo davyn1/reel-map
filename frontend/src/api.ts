@@ -173,6 +173,8 @@ export const api = {
     request<Me>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   demoInfo: () => request<DemoInfo>("/api/demo"),
+  /** passcode: the server has a single account, so the login screen asks only for its password. */
+  authMode: () => request<{ passcode: boolean }>("/api/auth/mode"),
   places: () => request<Place[]>("/api/places"),
   createPlace: (body: CreatePlace) => request<Place>("/api/places", { method: "POST", body: JSON.stringify(body) }),
   updateVisit: (placeId: number, update: VisitUpdate) =>

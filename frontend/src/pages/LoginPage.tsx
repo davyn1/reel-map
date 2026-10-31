@@ -39,7 +39,7 @@ export default function LoginPage({ onLogin, demo }: { onLogin: (me: Me) => void
       {demo && (
         <div className="demo-intro">
           <p>
-            A map of restaurants saved from Instagram food reels, with a been-here log for two friends. This demo
+            A map of restaurants saved from Instagram food reels, with a been-here log for my friend and me. This demo
             uses made-up places; anything you change is reset later.
           </p>
           <button className="primary" disabled={busy} onClick={() => logIn(demo.username, demo.password)}>

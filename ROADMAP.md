@@ -2,25 +2,27 @@
 
 ## Using it
 
-- [ ] Try it on a real phone: the home-screen install is built (manifest, icons, iPhone status bar) but untested on a device. Needs the real map reachable from the phone (Tailscale, or deploying `fly.toml`)
+- [ ] Install it on both phones: the real map is hosted now, so add it to the home screen and check the layout on a real device (iPhone status bar, tap sizes)
 - [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
-- [ ] Live sync between the two of us: an open app picks up the other person's changes (new places, been-here, ratings) within seconds, without refreshing. Data is already shared once hosted; this is about seeing it live
+- [ ] Live sync between the two of us: an open app picks up the other person's changes (new places, been-here, ratings, new imports) within seconds, without refreshing. The data is already shared; this is about seeing it live
 
 ## Data quality
 
-- [ ] Clear the review queue: 2 multi-spot reels (Butter & Crumble, Deli Board) need their other spots added, and 4 reels have no venue
+- [ ] Clear the review queue (12 reels): 2 multi-spot reels (Butter & Crumble, Deli Board) need their other spots added, 8 have no location (5 of those no venue either), and 2 came in with a confidence Muse shouldn't send (`name`, `address`)
 - [ ] Pin sanity check: compare Muse's coordinates with OpenStreetMap's free geocoder and flag pins more than a few hundred metres from their address
 
 ## Getting new reels in
 
-- [ ] Import page: paste or drop a Muse export in the app and see the import summary there, without the command line
-- [ ] "Copy prompt for Muse" button that asks for reels saved since the last import, in the export format
+- [ ] Import page, as a fallback to Muse's automatic upload: paste or drop an export in the app (including JSON copied from a chat, in a code block or wrapped as `{"reels": [...]}`) and see the import summary there, still refusing anything else with the error's line and column
 - [ ] "New" badge on places from the latest import
-- [ ] Accept JSON copied from a chat (inside a code block, or wrapped as `{"reels": [...]}`), still refusing anything else with the error's line and column
+
+## Keeping it running
+
+- [ ] Off-server backups: a nightly copy of the database and Muse's uploads somewhere outside Fly, plus a "download my data" button. Right now Fly's daily volume snapshots (kept 5 days) are the only backup
+- [ ] Muse upload alerts: notice when an end-of-day upload fails or stops arriving (the map's "Last import" line turns red on a failure, but nobody may look)
 
 ## Ideas
 
-- [ ] Back up the Muse exports too: keep them under `personal/` so a restore on a new machine has everything it needs (the log alone needs the places re-imported first)
 - [ ] Food crawl planner: pick a few places, order them sensibly, and open one multi-stop Google Maps link
 - [ ] Which posters to trust: each poster's average rating across the places you've tried
 - [ ] Watch the reel in the app: Instagram's embed in the popup (test first; it can be unreliable)

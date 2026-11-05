@@ -7,7 +7,6 @@ from app.auth import require_user
 from app.db import get_session
 from app.importer.flags import FLAG_DESCRIPTIONS, in_bay_area
 from app.models import Place, Reel, User, Visit
-from app.routers.places import place_city
 from app.tags import TAG_ORDER
 from app.schemas import AttachPlaceIn, PlaceBrief, ReviewReelOut, StatsOut
 
@@ -62,11 +61,7 @@ def drop_if_orphaned(session: Session, place: Place | None) -> None:
 @router.get("/stats", response_model=StatsOut)
 def stats(user: User = Depends(require_user), session: Session = Depends(get_session)):
     """Counts for the map's chips; visited and favorites are the logged-in user's own."""
-    places = session.scalars(select(Place).options(selectinload(Place.reels), selectinload(Place.extra_reels))).all()
     return StatsOut(
-        reels_saved=session.scalar(select(func.count(Reel.id)).where(Reel.status != "rejected")),
-        on_map=len(places),
-        cities=len({c for p in places if (c := place_city(p))}),
         needs_review=session.scalar(select(func.count(Reel.id)).where(Reel.status == "needs_review")),
         visited=session.scalar(select(func.count(Visit.id)).where(Visit.user == user.username, Visit.visited.is_(True))),
         favorites=session.scalar(select(func.count(Visit.id)).where(Visit.user == user.username, Visit.favorite.is_(True))),

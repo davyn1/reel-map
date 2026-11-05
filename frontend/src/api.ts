@@ -93,9 +93,6 @@ export interface Place {
 }
 
 export interface Stats {
-  reels_saved: number;
-  on_map: number;
-  cities: number;
   needs_review: number;
   visited: number;
   favorites: number;

@@ -45,9 +45,6 @@ class PlaceOut(BaseModel):
 
 
 class StatsOut(BaseModel):
-    reels_saved: int  # every reel that isn't rejected
-    on_map: int  # places
-    cities: int
     needs_review: int
     visited: int
     favorites: int

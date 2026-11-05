@@ -183,9 +183,9 @@ def test_place_city_falls_back_to_address():
 
 
 def test_stats(client):
-    assert client.get("/api/stats").json() == {"reels_saved": 5, "on_map": 3, "cities": 1, "needs_review": 2, "visited": 0, "favorites": 0}
+    assert client.get("/api/stats").json() == {"needs_review": 2, "visited": 0, "favorites": 0}
     client.post(f"/api/reels/{review_by_url(client)['u4']['id']}/reject")
-    assert client.get("/api/stats").json() == {"reels_saved": 4, "on_map": 3, "cities": 1, "needs_review": 1, "visited": 0, "favorites": 0}
+    assert client.get("/api/stats").json() == {"needs_review": 1, "visited": 0, "favorites": 0}
 
 
 def visit(client, pid, **body):

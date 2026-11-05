@@ -5,8 +5,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
-REEL_STATUSES = ("matched", "needs_review", "rejected")
-
 # Extra spots for multi-spot reels. reels.place_id stays the reel's main (pinned) place.
 reel_extra_places = Table(
     "reel_extra_places",
@@ -48,7 +46,7 @@ class Reel(Base):
     muse_confidence: Mapped[str | None] = mapped_column(String)
     muse_note: Mapped[str | None] = mapped_column(Text)
     place_id: Mapped[int | None] = mapped_column(ForeignKey("places.id"))
-    status: Mapped[str] = mapped_column(String, default="needs_review")
+    status: Mapped[str] = mapped_column(String, default="needs_review")  # matched / needs_review / rejected
     flags: Mapped[list[str]] = mapped_column(JSON, default=list)
     review_reason: Mapped[str | None] = mapped_column(Text)
     source_file: Mapped[str | None] = mapped_column(String)  # export file name, or "manual"

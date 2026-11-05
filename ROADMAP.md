@@ -17,8 +17,6 @@
 - [ ] "Copy prompt for Muse" button that asks for reels saved since the last import, in the export format
 - [ ] "New" badge on places from the latest import
 - [ ] Accept JSON copied from a chat (inside a code block, or wrapped as `{"reels": [...]}`), still refusing anything else with the error's line and column
-- [ ] Muse handoff: have Muse push new saves somewhere the app picks up (a shared file, email or webhook). Depends on what Muse can do: run on a schedule, write outside the chat, tell which reels are new
-- [ ] Watch a folder (e.g. a synced Drive folder) and import new `reels*.json` automatically
 
 ## Ideas
 
@@ -46,3 +44,5 @@
 - [x] Repo made public: personal data kept out of git, README with the demo and screenshots, MIT license
 - [x] Food type tags (about a dozen broad ones) with hand editing, food-icon pins, clustering, visit log with stars, dates and notes, and favorites
 - [x] Stat chips trimmed to the ones you can tap, colored like the pins they filter
+- [x] Muse handoff: Muse sends its end-of-day export straight to the hosted app's upload endpoint, which imports it automatically (no Drive folder or PC needed)
+- [x] Real map hosted on Fly.io, with one shared account and a passcode-only login

@@ -48,3 +48,4 @@
 - [x] Stat chips trimmed to the ones you can tap, colored like the pins they filter
 - [x] Muse handoff: Muse sends its end-of-day export straight to the hosted app's upload endpoint, which imports it automatically (no Drive folder or PC needed)
 - [x] Real map hosted on Fly.io, with one shared account and a passcode-only login
+- [x] Remove from map: take a place off the map (e.g. after unsaving its reel), with Undo; later imports don't bring it back and its log is kept

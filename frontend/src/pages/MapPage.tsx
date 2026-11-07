@@ -146,12 +146,14 @@ function PlacePopup({
   onUpdate,
   onTags,
   onResize,
+  onRemove,
 }: {
   place: Place;
   allTags: string[];
   onUpdate: (u: VisitUpdate) => Promise<void>;
   onTags: (tags: string[] | null) => Promise<void>;
   onResize: () => void;
+  onRemove: () => void;
 }) {
   // Ticking "Been here" adds the rating row; let Leaflet re-measure and re-pan.
   useEffect(() => {
@@ -197,6 +199,9 @@ function PlacePopup({
           );
         })}
       </div>
+      <button className="link-btn popup-remove" onClick={onRemove}>
+        Remove from map
+      </button>
     </div>
   );
 }
@@ -234,6 +239,7 @@ export default function MapPage({
   const [flyTarget, setFlyTarget] = useState<{ pin: Pin; nonce: number } | null>(null);
   const markers = useRef(new Map<number, LeafletMarker>()).current;
   const [pick, setPick] = useState<{ name: string; fallback: boolean } | "none" | null>(null);
+  const [removed, setRemoved] = useState<Place | null>(null); // last place taken off the map, for Undo
   const lastPick = useRef<number | null>(null);
   const cluster = useRef<LeafletClusterGroup>(null);
 
@@ -281,6 +287,37 @@ export default function MapPage({
   async function setTags(placeId: number, tags: string[] | null) {
     try {
       replace(await api.setTags(placeId, tags));
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  /** Take a place off the map, e.g. after unsaving its reel. Hidden, not deleted: Undo brings it back. */
+  async function remove(place: Place) {
+    const ok = window.confirm(
+      `Remove "${place.name}" from the map?
+
+Later Muse imports won't add it back. Its log and tags are kept, and you can undo right after.`,
+    );
+    if (!ok) return;
+    try {
+      await api.setRemoved(place.id, true);
+      setPlaces((prev) => prev?.filter((p) => p.id !== place.id) ?? null);
+      if (selectedId === place.id) setSelectedId(null);
+      setRemoved(place);
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function undoRemove() {
+    if (!removed) return;
+    try {
+      const back = await api.setRemoved(removed.id, false);
+      setPlaces((prev) => (prev ? [...prev, back].sort((a, b) => a.id - b.id) : prev));
+      setRemoved(null);
+      onChanged();
     } catch (e) {
       setError(String(e));
     }
@@ -436,6 +473,18 @@ export default function MapPage({
         </div>
       )}
 
+      {removed && (
+        <div className="pick-note" role="status">
+          <span>
+            Removed <b>{removed.name}</b> from the map
+          </span>
+          <button onClick={undoRemove}>Undo</button>
+          <button className="link-btn" onClick={() => setRemoved(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="error" role="alert">
           {error.startsWith("TypeError") || error.includes("500") || error.includes("502")
@@ -483,6 +532,7 @@ export default function MapPage({
                     onUpdate={(u) => update(pin.place.id, u)}
                     onTags={(t) => setTags(pin.place.id, t)}
                     onResize={() => requestAnimationFrame(() => markers.get(pin.place.id)?.getPopup()?.update())}
+                    onRemove={() => remove(pin.place)}
                   />
                 </Popup>
               </Marker>

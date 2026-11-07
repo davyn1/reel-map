@@ -179,6 +179,7 @@ a.chip:hover, button.chip:hover { border-color: var(--chip, var(--muted)); }
 .saved { font-size: 0.75rem; color: var(--visited); }
 .popup-reels { border-top: 1px solid var(--border); padding-top: 6px; display: grid; gap: 4px; }
 .popup-reel { color: var(--muted); overflow-wrap: anywhere; }
+.popup .popup-remove { display: block; margin-top: 8px; color: var(--danger); }
 
 /* ---------- place list ---------- */
 .list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 12px; }

@@ -182,6 +182,9 @@ export const api = {
   stats: () => request<Stats>("/api/stats"),
   recentImports: (limit = 1) => request<ImportRun[]>(`/api/imports?limit=${limit}`),
   tags: () => request<string[]>("/api/tags"),
+  /** Take a place off the map (true) or bring it back (false). Nothing is deleted. */
+  setRemoved: (placeId: number, removed: boolean) =>
+    request<Place>(`/api/places/${placeId}/removed`, { method: "PUT", body: JSON.stringify({ removed }) }),
   /** Pick a place's tags by hand, or pass null to go back to the automatic ones. */
   setTags: (placeId: number, tags: string[] | null) =>
     request<Place>(`/api/places/${placeId}/tags`, { method: "PUT", body: JSON.stringify({ tags }) }),

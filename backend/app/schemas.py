@@ -92,6 +92,10 @@ class CreatePlaceIn(BaseModel):
     force: bool = False  # add even though a similar place is nearby
 
 
+class RemovedIn(BaseModel):
+    removed: bool
+
+
 class TagsIn(BaseModel):
     """Tags to show for a place, from GET /api/tags. null goes back to automatic tags."""
 

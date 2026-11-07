@@ -111,7 +111,7 @@ To start over, delete `backend/food_map.db` and re-run the import.
 
 ## Data model
 
-- **places**: id, name, lat, lng, address, is_approximate (bool), tags_override (JSON list or null: hand-picked food tags; null = automatic)
+- **places**: id, name, lat, lng, address, is_approximate (bool), tags_override (JSON list or null: hand-picked food tags; null = automatic), removed (bool: taken off the map by hand, see Removing a place)
 - **reels**: id, post_url (unique; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file (export file name, or `manual`), added_by (username, hand-added places only)
 - **reel_extra_places**: reel_id, place_id. Extra spots for multi-spot reels; `reels.place_id` stays the reel's main place.
 - **visits**: id, place_id, user (= `users.username`), visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Notes and favorite don't require a visit. Before logins existed `user` was `"me"`; the first account created takes those rows over.
@@ -129,11 +129,13 @@ Prefer widening an existing tag's keywords over adding a new tag. Edits re-tag e
 
 Places added by hand in the app (`POST /api/places`) get one reel with `source_file = "manual"` and `added_by`, whose `post_url` is the link they gave (an Instagram link in canonical form, so a later Muse export of that reel is skipped as known) or `manual:<random id>` without one. That keeps them like every other place: shared, backed up, filterable.
 
+Removing a place ("Remove from map" in the popup, e.g. after unsaving its reel on Instagram) only sets `places.removed`; nothing is deleted. Its reels stay linked, so later Muse exports skip them as known (a new reel that merges into it stays hidden too), and its log and tags come back with Undo. Removed places are left out of `GET /api/places`, the stats counts and the add-a-place nearby check; adding one back by the same link un-removes it. Imports never remove anything on their own: a reel missing from a full export is ignored, so a cut-off export can't wipe the map.
+
 One place has many reels. The Google Maps link is computed (not stored) from name + address, falling back to lat/lng.
 
 ## Personal data
 
-`personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 2: `users.<username>.places[]` (been-here, visit date, rating, notes, favorite), a shared `tags[]` (hand-picked tags), and `manual_places[]` (places added by hand, which no Muse export can rebuild; restore recreates them first). Version-1 files (before logins, one person) still restore, into `--user` (default: the first account).
+`personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 2: `users.<username>.places[]` (been-here, visit date, rating, notes, favorite), a shared `tags[]` (hand-picked tags), a shared `removed[]` (places taken off the map, kept hidden on restore), and `manual_places[]` (places added by hand, which no Muse export can rebuild; restore recreates them first). Version-1 files (before logins, one person) still restore, into `--user` (default: the first account).
 - **Personal data goes under `personal/` (gitignored), nowhere else.** The repo is public: never commit real exports, the database, the log, real names or screenshots of the real map. README screenshots come from the demo.
 - Earlier commits contain only an empty `my-log.json`, so the history is clean.
 - Places are keyed by their reels' post URLs, never database IDs, so a restore works after a fresh import.
@@ -210,9 +212,10 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 - `GET /api/imports?limit=` — recent import runs, newest first (login required)
 
 - `POST /api/places` — add a place by hand: `{name, lat, lng, address?, link?, is_approximate?, tags?, favorite?, visited?, notes?, force?}` → the place (201). 422 outside the Bay Area / bad link (must be http(s)) / unknown tag. 409 `{message, place_id, kind}`: `same_link` (that link is already on the map) or, unless `force`, `similar_nearby` (name score ≥ 80 within 150 m).
-- `GET /api/places` — every place (in import order) with `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
+- `GET /api/places` — every place still on the map (in import order; removed ones left out) with `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
 - `GET /api/stats` — `needs_review`, and the logged-in person's own `visited`, `favorites` (what the map's chips show)
 - `POST /api/places/{id}/visit` — partial update of the visit log: any of `visited`, `visited_date`, `rating` (1–5), `notes`, `favorite`; only fields sent change, `null` clears rating/notes/date. `visited` takes the desired state rather than flipping, so a double click can't undo itself. Turning it on stamps today's date (unless one is sent); turning it off clears date and rating but keeps notes and favorite.
+- `PUT /api/places/{id}/removed` `{"removed": bool}` — take a place off the map or bring it back (404 unknown place); returns the place
 - `GET /api/tags` — every food tag, in display order
 - `PUT /api/places/{id}/tags` `{"tags": [...]}` — pick a place's tags by hand (any subset of `GET /api/tags`, deduped and sorted; 422 on unknown tags), or `{"tags": null}` to go back to automatic. Places carry `tags_edited`.
 - `GET /api/flags` — flag code → description, for badges

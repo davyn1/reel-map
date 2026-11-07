@@ -16,7 +16,7 @@ from app.importer.flags import in_bay_area
 from app.importer.matching import MIN_MERGE_NAME_SCORE, name_score
 from app.importer.parse import normalize_post_url
 from app.models import Place, Reel, User, Visit
-from app.schemas import CreatePlaceIn, FriendVisitOut, PlaceOut, ReelBrief, TagsIn, VisitIn
+from app.schemas import CreatePlaceIn, FriendVisitOut, PlaceOut, ReelBrief, RemovedIn, TagsIn, VisitIn
 from app.tags import TAG_ORDER, place_tags, sort_tags
 
 router = APIRouter(prefix="/api/places", tags=["places"], dependencies=[Depends(require_user)])
@@ -78,7 +78,8 @@ def list_places(user: User = Depends(require_user), session: Session = Depends(g
     places = session.scalars(
         select(Place)
         .options(selectinload(Place.reels), selectinload(Place.extra_reels), selectinload(Place.visits))
-        .order_by(Place.id)  # import order; the map numbers pins in this order
+        .where(Place.removed.is_(False))
+        .order_by(Place.id)  # import order; the list's "Default" sort
     )
     names = display_names(session)
     return [place_out(p, user.username, names) for p in places]
@@ -123,11 +124,17 @@ def create_place(body: CreatePlaceIn, user: User = Depends(require_user), sessio
     existing = session.scalars(select(Reel).where(Reel.post_url == key)).first()
     if existing is not None:
         on = existing.place or (existing.extra_places[0] if existing.extra_places else None)
+        if on is not None and on.removed:
+            # Adding back something you removed: bring the old place back, with its log.
+            on.removed = False
+            session.commit()
+            backup.save_log_quietly(session)
+            return place_out(on, user.username, display_names(session))
         raise HTTPException(409, {"message": f"That link is already on the map as {on.name}." if on else
                                   "That reel is already imported (it's in the review queue).",
                                   "place_id": on.id if on else None, "kind": "same_link"})
     if not body.force:
-        for other in session.scalars(select(Place).where(Place.is_approximate.is_(False))):
+        for other in session.scalars(select(Place).where(Place.is_approximate.is_(False), Place.removed.is_(False))):
             if _meters(body.lat, body.lng, other.lat, other.lng) <= NEARBY_METERS and name_score(name, other.name) >= MIN_MERGE_NAME_SCORE:
                 raise HTTPException(409, {"message": f"{other.name} is already on the map right there. Add anyway?",
                                           "place_id": other.id, "kind": "similar_nearby"})
@@ -178,6 +185,19 @@ def update_visit(place_id: int, body: VisitIn, user: User = Depends(require_user
         visit.notes = (body.notes or "").strip() or None
     if "favorite" in sent and body.favorite is not None:
         visit.favorite = body.favorite
+    session.commit()
+    backup.save_log_quietly(session)
+    return place_out(place, user.username, display_names(session))
+
+
+@router.put("/{place_id}/removed", response_model=PlaceOut)
+def set_removed(place_id: int, body: RemovedIn, user: User = Depends(require_user), session: Session = Depends(get_session)):
+    """Take a place off the map (true) or bring it back (false). Nothing is deleted: the reels stay
+    linked, so later Muse exports don't re-add it, and its log and tags come back with it."""
+    place = session.get(Place, place_id)
+    if place is None:
+        raise HTTPException(404, "place not found")
+    place.removed = body.removed
     session.commit()
     backup.save_log_quietly(session)
     return place_out(place, user.username, display_names(session))

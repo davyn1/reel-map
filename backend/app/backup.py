@@ -12,9 +12,11 @@ Format (version 2):
      "users": {"davy": {"places": [{"name", "post_urls", "visited"?, "visited_date"?, "rating"?,
                                     "notes"?, "favorite"?}, ...]}, ...},
      "tags":  [{"name", "post_urls", "tags": [...]}, ...],
+     "removed": [{"name", "post_urls"}, ...],
      "manual_places": [{"post_url", "name", "lat", "lng", "address"?, "is_approximate", "added_by"}, ...]}
 Places added by hand in the app aren't in any Muse export, so they're saved whole in
 "manual_places" and recreated on restore (before visits and tags are applied).
+"removed" lists places taken off the map by hand, so a restore keeps them hidden.
 Version 1 (before logins: one person's entries, tags inline) still restores, into --user.
 
 All personal data in the repo lives under personal/; see the README to remove it.
@@ -71,6 +73,7 @@ def export_log(session: Session) -> dict:
     ).all()
     users: dict[str, list[dict]] = {}
     tags: list[dict] = []
+    removed: list[dict] = []
     manual = [
         {k: v for k, v in {
             "post_url": r.post_url, "name": r.place.name, "lat": r.place.lat, "lng": r.place.lng,
@@ -87,10 +90,13 @@ def export_log(session: Session) -> dict:
                 users.setdefault(visit.user, []).append(entry)
         if place.tags_override is not None:
             tags.append({"name": place.name, "post_urls": _post_urls(place), "tags": place.tags_override})
+        if place.removed:
+            removed.append({"name": place.name, "post_urls": _post_urls(place)})
     return {
         "version": VERSION,
         "users": {u: {"places": sorted(entries, key=_sort_key)} for u, entries in sorted(users.items())},
         "tags": sorted(tags, key=_sort_key),
+        "removed": sorted(removed, key=_sort_key),
         "manual_places": sorted(manual, key=lambda m: (m["name"].lower(), m["post_url"])),
     }
 
@@ -173,6 +179,12 @@ def restore_log(session: Session, data: dict, v1_user: str = LEGACY_USER) -> tup
             unmatched.append(entry.get("name", "?"))
             continue
         place.tags_override = entry.get("tags")
+        restored += 1
+    for entry in data.get("removed", []):
+        place = _find_place(session, entry.get("post_urls", []))
+        if place is None:
+            continue  # its reels aren't imported, so there's nothing to hide
+        place.removed = True
         restored += 1
     session.commit()
     return restored, unmatched

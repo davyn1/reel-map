@@ -60,11 +60,12 @@ def drop_if_orphaned(session: Session, place: Place | None) -> None:
 
 @router.get("/stats", response_model=StatsOut)
 def stats(user: User = Depends(require_user), session: Session = Depends(get_session)):
-    """Counts for the map's chips; visited and favorites are the logged-in user's own."""
+    """Counts for the map's chips; visited and favorites are the logged-in user's own, on places still on the map."""
+    mine = select(func.count(Visit.id)).join(Place).where(Visit.user == user.username, Place.removed.is_(False))
     return StatsOut(
         needs_review=session.scalar(select(func.count(Reel.id)).where(Reel.status == "needs_review")),
-        visited=session.scalar(select(func.count(Visit.id)).where(Visit.user == user.username, Visit.visited.is_(True))),
-        favorites=session.scalar(select(func.count(Visit.id)).where(Visit.user == user.username, Visit.favorite.is_(True))),
+        visited=session.scalar(mine.where(Visit.visited.is_(True))),
+        favorites=session.scalar(mine.where(Visit.favorite.is_(True))),
     )
 
 

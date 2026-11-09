@@ -62,6 +62,18 @@ curl -X POST https://<your-app>/api/import \
 
 `FOOD_MAP_IMPORT_TOKEN` is a long random secret set on the server; without it, token uploads are off. Each upload is saved in `data/` before it's imported, reels already on the map are skipped, and the map shows when the last import happened and what it added.
 
+### Upload alerts (Discord)
+
+With `FOOD_MAP_ALERT_WEBHOOK` set to a Discord webhook URL (a server secret), the app posts to that channel when:
+
+- a Muse upload is refused or fails to import (bad JSON, empty, too big, an error on the server),
+- an upload comes with the wrong token,
+- Muse hasn't uploaded for `FOOD_MAP_QUIET_DAYS` days (default 7; Muse only uploads on days something new was saved).
+
+Each kind posts at most once per cooldown, so a repeating problem doesn't spam the channel. Test the webhook from a shell on the server with `python -m app.alerts test`.
+
+The server sleeps when idle, so the quiet check needs something to wake it: `.github/workflows/wake.yml` calls it once a day. Set the map's address as the repository secret `YUMS_MAP_URL` (it's kept out of the public files). Without that secret the job does nothing.
+
 ## Running locally
 
 Two terminals, from the repo root:

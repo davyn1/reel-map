@@ -25,6 +25,7 @@ backend/
     backup.py        personal/my-log.json: export after every change, restore onto a fresh DB
     auth.py          password hashing (scrypt), session cookies, require_user, login lockout
     users.py         CLI: add / passwd / list / remove accounts (no sign-up page)
+    alerts.py        Discord alerts when Muse's uploads fail or go quiet; CLI: test / check
     demo/            public demo mode: sample_reels.json (made-up places) + reset()
     tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
@@ -53,6 +54,7 @@ frontend/
   public/            manifest.webmanifest + app icons (home-screen install)
   index.html         install tags (manifest, theme-color, apple-* for iPhone)
 data/                Muse exports (gitignored)
+.github/workflows/wake.yml  daily job that wakes the hosted map so it runs its quiet check
 Dockerfile           one image for both Fly apps (builds the map, then the Python server)
 fly.toml             the real app (volume at /data); fly.demo.toml: the public demo (no volume)
 personal/            my-log.json: the personal backup (gitignored; see Personal data)
@@ -100,6 +102,8 @@ Settings come from environment variables (or `.env`), so the hosted server can p
 | `FOOD_MAP_FRONTEND_DIST` | `frontend/dist/` | built map served at `/` |
 | `FOOD_MAP_CORS_ORIGINS` | the Vite dev origins | comma-separated |
 | `FOOD_MAP_IMPORT_TOKEN` | unset (token uploads off) | secret Muse sends as `Authorization: Bearer …` to `POST /api/import`; set it as a host secret, never commit it |
+| `FOOD_MAP_ALERT_WEBHOOK` | unset (alerts off) | Discord webhook URL for upload alerts (see Upload alerts); a host secret, never commit it |
+| `FOOD_MAP_QUIET_DAYS` | `7` | days without a Muse upload before a "gone quiet" alert |
 | `FOOD_MAP_DEMO` | unset | `true` makes this server the public demo (see Demo); never set it on the real app |
 | `FOOD_MAP_COOKIE_SECURE` | `true` | login cookie only over https; set `false` in `.env` for plain-http local use in browsers other than Chrome |
 
@@ -117,6 +121,7 @@ To start over, delete `backend/food_map.db` and re-run the import.
 - **visits**: id, place_id, user (= `users.username`), visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Notes and favorite don't require a visit. Before logins existed `user` was `"me"`; the first account created takes those rows over.
 - **users**: id, username (unique, lowercase), display_name, password_hash (`scrypt$n$r$p$salt$hash`), created_at. Made with `python -m app.users`; there is no sign-up page.
 - **import_runs** (`ImportRun`): id, created_at, source (`upload` / `cli`), filename (with "(from muse)" / "(from <username>)"), ok, error, imported, pinned, approximate, needs_review, skipped, merged. Every import, uploaded or command-line, adds one.
+- **alerts_sent** (`AlertSent`): kind (`upload_failed` / `wrong_token` / `quiet`), sent_at. When each Discord alert last went out, for cooldowns.
 - **sessions** (`LoginSession`): id, token_hash (SHA-256 of the cookie token; the raw token is never stored), user_id, created_at, expires_at (60 days).
 
 Schema changes: `create_all` only creates missing tables, so a column added to an existing table must also be listed in `db._ADDED_COLUMNS`; `init_db` adds it with `ALTER TABLE` and keeps the data.
@@ -268,6 +273,15 @@ Two Fly.io apps from the same image (`Dockerfile`; Fly builds it remotely, no Do
   - `GET /api/demo` (public; 404 on the real app) returns the demo login; the login page shows "Try the demo" and the title bar a "Demo · made-up places · source code" line.
   - Uploads are 403; the demo accounts are exempt from login lockout (otherwise one visitor could lock everyone out). Everything else works, and is wiped at the next reset.
   - Its database lives in `/tmp` inside the machine: never point it at real data.
+
+## Upload alerts
+
+Muse uploads with nobody watching, so `app/alerts.py` posts to Discord (`FOOD_MAP_ALERT_WEBHOOK`) when something goes wrong. Unset = off (local, tests, demo).
+- From `POST /api/import`: a Muse upload refused or failed (empty, over 5 MB, bad JSON, not UTF-8, or any exception during the import, which is now recorded as a failed import run and returns 500) → `upload_failed`, at most once an hour; a wrong bearer token → `wrong_token`, at most once per 6 h. Uploads by a logged-in person don't alert: they see the error.
+- Quiet: no successful Muse upload in `FOOD_MAP_QUIET_DAYS` (default 7, since Muse only uploads on days with new saves) → `quiet`, once per quiet stretch (again after another full stretch). Silent before Muse's first upload. Checked on server start and every 12 h while up (`main._check_quiet_periodically`); the server sleeps when idle, so `.github/workflows/wake.yml` hits `/api/health` daily. Its URL is the repo secret `YUMS_MAP_URL`, kept out of the public repo.
+- Sending runs on a thread and never fails the request. Discord rejects Python's default user agent, so `_post` sets one.
+- Tests turn alerts on with a fake `_post` (`tests/test_alerts.py`); never post to a real webhook from tests.
+- `python -m app.alerts test` posts a test message; `check` runs the quiet check now.
 
 ## Out of scope (for now)
 

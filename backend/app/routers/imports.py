@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import backup, demo
+from app import alerts, backup, demo
 from app.auth import COOKIE_NAME, require_user, user_for_token
 from app.config import DATA_DIR
 from app.db import get_session
@@ -52,6 +52,7 @@ def allow_upload(request: Request, session: Session = Depends(get_session)) -> s
             raise HTTPException(503, "Uploads by token aren't set up on this server (FOOD_MAP_IMPORT_TOKEN).")
         if hmac.compare_digest(header[7:].strip().encode(), expected.encode()):
             return "muse"
+        alerts.wrong_token(session)
         raise HTTPException(401, "Wrong upload token.")
     user = user_for_token(session, request.cookies.get(COOKIE_NAME))
     if user is None:
@@ -66,14 +67,21 @@ def _stamp() -> str:
 
 @router.post("/import")
 async def upload(request: Request, source: str = Depends(allow_upload), session: Session = Depends(get_session)):
+    def refuse(status: int, detail: str) -> HTTPException:
+        # Muse's uploads happen with nobody watching; a person uploading sees the error themselves.
+        if source == "muse":
+            alerts.upload_failed(session, detail)
+        return HTTPException(status, detail)
+
+    too_big = f"Upload is over {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f"Upload is over {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
+        raise refuse(413, too_big)
     body = await request.body()
     if len(body) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f"Upload is over {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
+        raise refuse(413, too_big)
     if not body.strip():
-        raise HTTPException(400, "The upload is empty.")
+        raise refuse(400, "The upload is empty.")
     if not _one_at_a_time.acquire(blocking=False):
         raise HTTPException(409, "Another import is running; try again in a minute.")
     try:
@@ -88,12 +96,18 @@ async def upload(request: Request, source: str = Depends(allow_upload), session:
             path.replace(bad)
             message = str(e).replace(str(path), bad.name)
             record_run(session, "upload", f"{bad.name} (from {source})", error=message)
-            raise HTTPException(400, f"Not imported: {message}") from e
+            raise refuse(400, f"Not imported: {message}") from e
         except UnicodeDecodeError as e:
             bad = path.with_suffix(".invalid")
             path.replace(bad)
             record_run(session, "upload", f"{bad.name} (from {source})", error="not UTF-8 text")
-            raise HTTPException(400, "Not imported: the upload isn't UTF-8 text.") from e
+            raise refuse(400, "Not imported: the upload isn't UTF-8 text.") from e
+        except Exception as e:
+            # A bug or a database problem: nothing was imported. Record it so the map's
+            # "Last import" line turns red, and say so in Discord.
+            session.rollback()
+            record_run(session, "upload", f"{path.name} (from {source})", error=f"import failed: {e}")
+            raise refuse(500, f"Import failed on the server ({type(e).__name__}). The file is kept as {path.name}.") from e
         record_run(session, "upload", label, summary)
         backup.save_log_quietly(session)
         return {"saved_as": path.name, **summary.as_dict()}

@@ -121,3 +121,12 @@ class ImportRun(Base):
     needs_review: Mapped[int] = mapped_column(Integer, default=0)
     skipped: Mapped[int] = mapped_column(Integer, default=0)
     merged: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AlertSent(Base):
+    """When each kind of Discord alert last went out, so a repeating problem doesn't spam (app.alerts)."""
+
+    __tablename__ = "alerts_sent"
+
+    kind: Mapped[str] = mapped_column(String, primary_key=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime)

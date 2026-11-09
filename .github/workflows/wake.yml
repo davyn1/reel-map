@@ -1,0 +1,26 @@
+# Wakes the hosted map once a day. The server sleeps when idle, and on start it checks whether
+# Muse has gone quiet (backend/app/alerts.py), posting to Discord if so.
+# The map's address is a repository secret, YUMS_MAP_URL, so it stays out of this public repo.
+# Without it (e.g. in a fork) the job does nothing.
+name: Wake the map
+
+on:
+  schedule:
+    - cron: "23 16 * * *" # daily, around 8–9am Pacific
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the server so it runs its quiet check
+        env:
+          MAP_URL: ${{ secrets.YUMS_MAP_URL }}
+        run: |
+          if [ -z "$MAP_URL" ]; then
+            echo "YUMS_MAP_URL isn't set; nothing to wake."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 60 --retry 3 --retry-delay 15 "$MAP_URL/api/health"

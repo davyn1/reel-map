@@ -1,5 +1,7 @@
 # Bay Area Yums Map
 
+[![CI](https://github.com/davyn1/reel-map/actions/workflows/ci.yml/badge.svg)](https://github.com/davyn1/reel-map/actions/workflows/ci.yml)
+
 A phone-first map of Bay Area restaurants saved from Instagram food reels, with a "been here" log for two friends.
 
 **Live demo: [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev)**. Click "Try the demo". It uses made-up places, and anything you change resets on its own.

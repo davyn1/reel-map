@@ -1,0 +1,70 @@
+# Checks every push and pull request: backend tests, frontend typecheck, and the Docker image
+# Fly deploys (built, not pushed). Needs no secrets.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an older, still-running check pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # Throwaway locations, so nothing points at a real database, log or export folder.
+      DATABASE_URL: sqlite:///${{ github.workspace }}/ci-tmp/ci.db
+      FOOD_MAP_PERSONAL_DIR: ${{ github.workspace }}/ci-tmp/personal
+      FOOD_MAP_EXPORTS_DIR: ${{ github.workspace }}/ci-tmp/exports
+      FOOD_MAP_COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: mkdir -p ../ci-tmp
+      - run: pytest -q
+
+  frontend:
+    name: Frontend typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # The same Dockerfile Fly builds (it also builds the frontend), so a broken image shows up here
+      # instead of during a deploy. Layers are cached between runs.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -54,7 +54,7 @@ frontend/
   public/            manifest.webmanifest + app icons (home-screen install)
   index.html         install tags (manifest, theme-color, apple-* for iPhone)
 data/                Muse exports (gitignored)
-.github/workflows/wake.yml  daily job that wakes the hosted map so it runs its quiet check
+.github/workflows/   ci.yml (tests, typecheck, Docker build; then deploys the demo on main), deploy-map.yml (real map, manual), wake.yml (daily wake-up for the quiet check)
 Dockerfile           one image for both Fly apps (builds the map, then the Python server)
 fly.toml             the real app (volume at /data); fly.demo.toml: the public demo (no volume)
 personal/            my-log.json: the personal backup (gitignored; see Personal data)
@@ -267,6 +267,8 @@ Testing note: the Claude browser pane does not run `requestAnimationFrame` while
 ## Hosting and the demo
 
 Two Fly.io apps from the same image (`Dockerfile`; Fly builds it remotely, no Docker needed locally). On this PC, deploy with `--depot=false`: the Depot builder fails with a TLS "unknown authority" error.
+
+CI/CD (GitHub Actions): `ci.yml` runs backend pytest (throwaway paths; the two real-export tests skip), the frontend typecheck and a Docker build (not pushed) on every push and PR, caching pip/npm/Docker layers. When all pass on a push to `main`, its `deploy-demo` job deploys the demo (`FLY_DEMO_DEPLOY_TOKEN`; skipped if unset). The real map never deploys on its own: `deploy-map.yml` is a manual "Run workflow" that deploys `main` only if that commit's CI run succeeded (`FLY_REAL_DEPLOY_TOKEN`). Both tokens are Fly deploy tokens scoped to one app. Runs on `main` aren't cancelled by newer pushes, so a deploy never stops halfway. Deploying by hand from this PC still works.
 - **Real app** (`fly.toml`, `fly deploy`): database, uploads and `my-log.json` on the `yums_data` volume at `/data`. `FOOD_MAP_IMPORT_TOKEN` is a Fly secret. Accounts are made on the server: `fly ssh console`, then `cd /app/backend && python -m app.users add …` (it asks for the password, so it needs the interactive shell).
 - **Public demo** (`fly.demo.toml`), `FOOD_MAP_DEMO=true`, for the resume link. Live at https://yums-map-demo.fly.dev. Deploy with `fly deploy --config fly.demo.toml --remote-only --ha=false --depot=false`. Keep it to **one machine** (`--ha=false`): each machine has its own database, so a second one would split visitors' logins and data. `app/demo`:
   - On every start (machines sleep when idle, so often) and every 24 h, `demo.reset()` drops all tables and refills them: `sample_reels.json` (made-up places in Muse's format, including pop-ups and 3 reels for the review page) through the normal importer, accounts `demo` (password public, on purpose) and `sam` (the friend; random password), and a few visits for each.

@@ -96,6 +96,19 @@ Two apps from one `Dockerfile`, built remotely by Fly (no Docker needed locally)
 - **Demo** (`fly.demo.toml`): live at [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev). Runs with `FOOD_MAP_DEMO=true` on a single machine, so all visitors share one database and their logins work. The database is rebuilt from sample data on every start and every 24 hours.
 - **Real map** (`fly.toml`): deployed, login only, with its data on a 1 GB volume that Fly snapshots daily (kept 5 days).
 
+**Deploys happen from GitHub Actions:**
+- The demo deploys itself after CI passes on every push to `main` (the `deploy-demo` job in `.github/workflows/ci.yml`).
+- The real map deploys only when you ask: Actions tab → **Deploy the real map** → Run workflow (`.github/workflows/deploy-map.yml`). It only deploys `main`, and only a commit whose CI run passed.
+
+Each uses a Fly deploy token limited to its own app, stored as a repository secret. Create them once, piping each straight into GitHub so the token never shows on screen:
+
+```bash
+fly tokens create deploy -a yums-map-demo | gh secret set FLY_DEMO_DEPLOY_TOKEN -R davyn1/reel-map
+fly tokens create deploy -a yums-map | gh secret set FLY_REAL_DEPLOY_TOKEN -R davyn1/reel-map
+```
+
+Deploying by hand still works:
+
 ```bash
 fly deploy --config fly.demo.toml --ha=false    # the demo (add --depot=false if the build fails with a certificate error)
 fly deploy                                      # the real map

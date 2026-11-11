@@ -1,0 +1,46 @@
+# Deploys the real map (fly.toml) to Fly, on purpose: Actions tab → "Deploy the real map" → Run workflow.
+# It holds the real data, so unlike the demo it never deploys on its own. It only deploys main, and
+# only a commit whose CI run passed.
+# Needs FLY_REAL_DEPLOY_TOKEN, a deploy token scoped to the real map's app only.
+name: Deploy the real map
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # to look up this commit's CI result
+
+concurrency:
+  group: deploy-map
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy the real map
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CI passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          result=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+                     --json conclusion --jq '.[0].conclusion // "none"')
+          echo "CI for $GITHUB_SHA: $result"
+          if [ "$result" != "success" ]; then
+            echo "::error::CI hasn't passed for this commit (result: $result). Not deploying."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # --ha=false: one machine, since the SQLite database lives on its volume.
+      - name: fly deploy (real map)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_REAL_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_REAL_DEPLOY_TOKEN isn't set."
+            exit 1
+          fi
+          flyctl deploy --remote-only --ha=false

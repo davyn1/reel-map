@@ -6,6 +6,8 @@ Flow: Instagram saved reels → exported by Meta's Muse AI as JSON (`data/reels*
 
 Pins use Muse's own coordinates. There is no Google Places (or any external API) call; each popup has a plain "Open in Google Maps" link instead. If pins turn out to be wrong, a verification step (Google Places or OpenStreetMap Nominatim) can be added later.
 
+After finishing a feature or changing tests, CI, or deployment, update docs/FEATURES.md to match.
+
 ## Stack
 
 - Backend: Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite (`backend/food_map.db`)
@@ -61,6 +63,7 @@ personal/            my-log.json: the personal backup (gitignored; see Personal 
 README.md            the public front page: demo link, screenshots, features, highlights, quick start
 ROADMAP.md           to-do list (open items, ideas, someday, done)
 docs/setup.md        accounts, importing, upload endpoint, running, hosting, backups, tests
+docs/FEATURES.md     factual feature, testing, infrastructure and security reference (with file paths)
 docs/screenshots/    README screenshots, taken from the demo (made-up data only)
 LICENSE              MIT
 ```

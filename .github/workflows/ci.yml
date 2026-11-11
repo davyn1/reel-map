@@ -1,5 +1,6 @@
 # Checks every push and pull request: backend tests, frontend typecheck, and the Docker image
-# Fly deploys (built, not pushed). Needs no secrets.
+# Fly deploys (built, not pushed). The checks need no secrets. When they all pass on main, the demo
+# is deployed to Fly (needs the FLY_DEMO_DEPLOY_TOKEN secret; skipped without it).
 name: CI
 
 on:
@@ -9,10 +10,11 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same branch makes an older, still-running check pointless.
+# A newer push to the same branch makes an older, still-running check pointless. Not on main,
+# though: that would also cancel a demo deploy halfway through.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   backend:
@@ -68,3 +70,28 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy-demo:
+    name: Deploy the demo
+    # Only after every check passes, and only for pushes to main (not pull requests or other branches).
+    needs: [backend, frontend, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # One deploy at a time; a queued one waits rather than cancelling one halfway through.
+    concurrency:
+      group: deploy-demo
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # FLY_DEMO_DEPLOY_TOKEN is a deploy token scoped to the demo app only. Without it (e.g. in a
+      # fork) the job skips. --ha=false keeps the demo on one machine: each has its own database.
+      - name: fly deploy (demo)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_DEMO_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "FLY_DEMO_DEPLOY_TOKEN isn't set; skipping the deploy."
+            exit 0
+          fi
+          flyctl deploy --config fly.demo.toml --remote-only --ha=false

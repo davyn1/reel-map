@@ -30,7 +30,7 @@ A phone-first map of Bay Area restaurants saved from Instagram food reels, with 
 - **Careful merging.** Duplicates are caught through normalized reel URLs. Places merge only on the same street address *and* a fuzzy name match, since food halls share an address.
 - **Auth done properly for a small app.** scrypt password hashes, HttpOnly session cookies, only hashes of session tokens stored, and a 15-minute lockout after 5 wrong passwords.
 - **No API keys anywhere.** The basemap is [OpenFreeMap](https://openfreemap.org) vector tiles drawn by MapLibre GL, restyled to a minimal dark palette.
-- **Tested and deployed.** 96 pytest tests cover the parser, flags, import rules, API, logins and demo. The frontend is typechecked and UI flows were checked in headless Chrome. One Docker image runs on Fly.io; the demo is the same image with a throwaway database rebuilt from sample data every 24 hours.
+- **Tested and deployed.** 113 pytest tests cover the parser, flags, import rules, API, logins and demo. GitHub Actions runs them on every push, along with a frontend typecheck and a Docker image build, and deploys the demo when they all pass on main. UI flows were checked in headless Chrome. One Docker image runs on Fly.io; the demo is the same image with a throwaway database rebuilt from sample data every 24 hours.
 
 ## Stack
 

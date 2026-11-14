@@ -8,6 +8,7 @@ import { TagEditor } from "../components/TagEditor";
 import { FavoriteButton, FriendLines, Stars, VisitLog } from "../components/VisitLog";
 import { dishLine } from "../captions";
 import { clusterIcon, pinClasses, pinIcon, placeIcon, spreadOverlaps, type Pin } from "../mapUtils";
+import { useRefreshOnReturn } from "../useRefreshOnReturn";
 
 const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 // Zoomed in this far, every pin shows on its own.
@@ -85,6 +86,24 @@ function LastImport({ run }: { run: ImportRun | null }) {
       Last import {when} · {what}
     </p>
   );
+}
+
+/** The fresh list, reusing the old object for every place that didn't change. Returns `prev` itself
+ * when nothing changed at all, so a refresh with no news doesn't re-render the map or the list. */
+function mergePlaces(prev: Place[] | null, fresh: Place[]): Place[] {
+  if (!prev) return fresh;
+  const old = new Map(prev.map((p) => [p.id, p]));
+  let changed = prev.length !== fresh.length;
+  const merged = fresh.map((p, i) => {
+    const before = old.get(p.id);
+    if (before && JSON.stringify(before) === JSON.stringify(p)) {
+      if (prev[i] !== before) changed = true;
+      return before;
+    }
+    changed = true;
+    return p;
+  });
+  return changed ? merged : prev;
 }
 
 function formatDate(iso: string | null): string | null {
@@ -249,6 +268,27 @@ export default function MapPage({
     api.recentImports(1).then((runs) => setLastImport(runs[0] ?? null)).catch(() => setLastImport(null));
   }, []);
 
+  // Counts changes made on this screen, so a refresh that was already on its way can't undo one.
+  const edits = useRef(0);
+
+  // Back in the app: pick up what changed on the other phone or in a Muse upload. Filters, the map
+  // view, an open popup and a half-typed note stay as they are; only changed places are swapped in.
+  useRefreshOnReturn(() => {
+    const before = edits.current;
+    api
+      .places()
+      .then((fresh) => {
+        if (edits.current !== before) return; // a change made here meanwhile; the next return catches up
+        setPlaces((prev) => mergePlaces(prev, fresh));
+        setError(null);
+      })
+      .catch(() => undefined); // offline or asleep: keep showing what's there
+    api
+      .recentImports(1)
+      .then((runs) => setLastImport(runs[0] ?? null))
+      .catch(() => undefined);
+  });
+
   // Import order, kept as the default list order and as the tiebreak for other sorts. Not shown.
   const numbered = useMemo(() => (places ?? []).map((place, i) => ({ place, number: i + 1 })), [places]);
   const cities = useMemo(() => countBy(places ?? [], (p) => (p.city ? [p.city] : [])), [places]);
@@ -290,6 +330,7 @@ export default function MapPage({
   }
 
   async function update(placeId: number, change: VisitUpdate) {
+    edits.current++;
     try {
       replace(await api.updateVisit(placeId, change));
       onChanged();
@@ -299,6 +340,7 @@ export default function MapPage({
   }
 
   async function setTags(placeId: number, tags: string[] | null) {
+    edits.current++;
     try {
       replace(await api.setTags(placeId, tags));
     } catch (e) {
@@ -314,6 +356,7 @@ export default function MapPage({
 Later Muse imports won't add it back. Its log and tags are kept, and you can undo right after.`,
     );
     if (!ok) return;
+    edits.current++;
     try {
       await api.setRemoved(place.id, true);
       setPlaces((prev) => prev?.filter((p) => p.id !== place.id) ?? null);
@@ -327,6 +370,7 @@ Later Muse imports won't add it back. Its log and tags are kept, and you can und
 
   async function undoRemove() {
     if (!removed) return;
+    edits.current++;
     try {
       const back = await api.setRemoved(removed.id, false);
       setPlaces((prev) => (prev ? [...prev, back].sort((a, b) => a.id - b.id) : prev));

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type AttachBody, type Place, type ReviewReel } from "../api";
 import PinPicker from "../components/PinPicker";
+import { useRefreshOnReturn } from "../useRefreshOnReturn";
 
 
 function googleMapsSearch(query: string): string {
@@ -20,19 +21,22 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (quiet = false) => {
     try {
       const [q, p, f] = await Promise.all([api.reviewQueue(), api.places(), api.flags()]);
       setQueue(q);
       setPlaces(p);
       setFlagNames(f);
     } catch (e) {
-      setError(String(e));
+      if (!quiet) setError(String(e));
     }
   }, []);
   useEffect(() => {
     reload();
   }, [reload]);
+  // Back in the app: the other phone may have sorted out some of these. An open Fix panel keeps
+  // what's typed in it (it's keyed by reel), and a failed refresh just keeps the current list.
+  useRefreshOnReturn(() => reload(true));
 
   const flagCounts = useMemo(() => {
     const counts: Record<string, number> = {};

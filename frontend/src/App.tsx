@@ -4,6 +4,7 @@ import AddPlacePage from "./pages/AddPlacePage";
 import LoginPage from "./pages/LoginPage";
 import MapPage from "./pages/MapPage";
 import ReviewPage from "./pages/ReviewPage";
+import { useRefreshOnReturn } from "./useRefreshOnReturn";
 
 type Route = "map" | "review" | "add";
 
@@ -56,6 +57,10 @@ export default function App() {
   useEffect(() => {
     if (me) refreshStats();
   }, [me, refreshStats]);
+  // Coming back to the app: the chips may have changed on the other phone.
+  useRefreshOnReturn(() => {
+    if (me) refreshStats();
+  });
 
   async function logout() {
     setMenuOpen(false);

@@ -4,7 +4,7 @@
 
 - [ ] Install it on both phones: the real map is hosted now, so add it to the home screen and check the layout on a real device (iPhone status bar, tap sizes)
 - [ ] Near me: sort the list by distance from where you are, with a "you are here" dot on the map
-- [ ] Live sync between the two of us: an open app picks up the other person's changes (new places, been-here, ratings, new imports) within seconds, without refreshing. The data is already shared; this is about seeing it live
+- [ ] Live sync while both of you have the map open: an open app picks up the other person's changes (new places, been-here, ratings, new imports) within about 10 seconds. Coming back to the app already refreshes it (see Done); this would add a cheap "anything changed?" check every ~10 s while the map is on screen
 
 ## Data quality
 
@@ -49,4 +49,5 @@
 - [x] Muse handoff: Muse sends its end-of-day export straight to the hosted app's upload endpoint, which imports it automatically (no Drive folder or PC needed)
 - [x] Real map hosted on Fly.io, with one shared account and a passcode-only login
 - [x] Remove from map: take a place off the map (e.g. after unsaving its reel), with Undo; later imports don't bring it back and its log is kept
+- [x] Refresh on return: switching back to the app picks up changes from the other phone or a Muse upload, keeping filters, the map view, an open popup and a half-typed note
 - [x] CI/CD: every push runs the backend tests, the frontend typecheck and a Docker build; passing pushes to main deploy the demo, and the real map deploys with one click

@@ -268,7 +268,21 @@ export default function MapPage({
       ),
     [numbered, city, tag, pinType, q],
   );
-  const pins = useMemo(() => spreadOverlaps(shown), [shown]);
+  // Each marker keeps the same position array while its place hasn't moved. react-leaflet compares
+  // positions by reference, and a "moved" marker is taken out of its cluster and put back, which
+  // reopens its popup: an open note loses focus and the map pans. Any change to the places list
+  // (a refresh, a been-here tick) would otherwise do that to every marker.
+  const positions = useRef(new Map<number, Pin["position"]>()).current;
+  const pins = useMemo(
+    () =>
+      spreadOverlaps(shown).map((pin) => {
+        const prev = positions.get(pin.place.id);
+        if (prev && prev[0] === pin.position[0] && prev[1] === pin.position[1]) return { ...pin, position: prev };
+        positions.set(pin.place.id, pin.position);
+        return pin;
+      }),
+    [shown, positions],
+  );
   const listed = useMemo(() => sortBy(shown, sort), [shown, sort]);
 
   function replace(updated: Place) {

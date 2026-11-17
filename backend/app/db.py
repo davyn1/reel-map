@@ -13,7 +13,7 @@ SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
 def init_db(bind=engine) -> None:
-    from app import models  # noqa: F401  (registers tables)
+    from app import models, sync  # noqa: F401  (registers tables, and the live-sync change hook)
 
     Base.metadata.create_all(bind)
     _add_missing_columns(bind)

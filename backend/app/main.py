@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app import alerts, demo
 from app.config import CORS_ORIGINS, FRONTEND_DIST
 from app.db import SessionLocal, init_db
-from app.routers import auth, imports, places, reels
+from app.routers import auth, imports, places, reels, version
 
 
 @asynccontextmanager
@@ -62,6 +62,7 @@ app.include_router(auth.router)
 app.include_router(imports.router)
 app.include_router(places.router)
 app.include_router(reels.router)
+app.include_router(version.router)
 
 
 @app.get("/api/health")

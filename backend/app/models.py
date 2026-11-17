@@ -123,6 +123,16 @@ class ImportRun(Base):
     merged: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class AppState(Base):
+    """One row (id 1): `version` goes up with every commit that changes shared data (app.sync), so open
+    apps can ask "anything new?" cheaply and only re-fetch when it moved."""
+
+    __tablename__ = "app_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class AlertSent(Base):
     """When each kind of Discord alert last went out, so a repeating problem doesn't spam (app.alerts)."""
 

@@ -44,6 +44,10 @@ class PlaceOut(BaseModel):
     reels: list[ReelBrief]
 
 
+class VersionOut(BaseModel):
+    version: int
+
+
 class StatsOut(BaseModel):
     needs_review: int
     visited: int

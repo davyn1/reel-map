@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type AttachBody, type Place, type ReviewReel } from "../api";
 import PinPicker from "../components/PinPicker";
-import { useRefreshOnReturn } from "../useRefreshOnReturn";
+import { useOnDataChanged } from "../liveSync";
 
 
 function googleMapsSearch(query: string): string {
@@ -34,9 +34,9 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
   useEffect(() => {
     reload();
   }, [reload]);
-  // Back in the app: the other phone may have sorted out some of these. An open Fix panel keeps
-  // what's typed in it (it's keyed by reel), and a failed refresh just keeps the current list.
-  useRefreshOnReturn(() => reload(true));
+  // Live sync: the other phone may have sorted out some of these. An open Fix panel keeps what's
+  // typed in it (it's keyed by reel), and a failed refresh just keeps the current list.
+  useOnDataChanged(() => reload(true));
 
   const flagCounts = useMemo(() => {
     const counts: Record<string, number> = {};

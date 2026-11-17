@@ -8,7 +8,7 @@ import { TagEditor } from "../components/TagEditor";
 import { FavoriteButton, FriendLines, Stars, VisitLog } from "../components/VisitLog";
 import { dishLine } from "../captions";
 import { clusterIcon, pinClasses, pinIcon, placeIcon, spreadOverlaps, type Pin } from "../mapUtils";
-import { useRefreshOnReturn } from "../useRefreshOnReturn";
+import { useOnDataChanged } from "../liveSync";
 
 const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 // Zoomed in this far, every pin shows on its own.
@@ -271,14 +271,20 @@ export default function MapPage({
   // Counts changes made on this screen, so a refresh that was already on its way can't undo one.
   const edits = useRef(0);
 
-  // Back in the app: pick up what changed on the other phone or in a Muse upload. Filters, the map
-  // view, an open popup and a half-typed note stay as they are; only changed places are swapped in.
-  useRefreshOnReturn(() => {
+  // Live sync: shared data changed (the other phone, a Muse upload, or a change made here). Filters,
+  // the map view, an open popup and a half-typed note stay as they are; only changed places are
+  // swapped in.
+  function refresh() {
     const before = edits.current;
     api
       .places()
       .then((fresh) => {
-        if (edits.current !== before) return; // a change made here meanwhile; the next return catches up
+        if (edits.current !== before) {
+          // A change made here landed meanwhile, so this list may be older than what's shown. Try
+          // again shortly instead of showing it: the version poller has already moved past this change.
+          window.setTimeout(refresh, 1000);
+          return;
+        }
         setPlaces((prev) => mergePlaces(prev, fresh));
         setError(null);
       })
@@ -287,7 +293,8 @@ export default function MapPage({
       .recentImports(1)
       .then((runs) => setLastImport(runs[0] ?? null))
       .catch(() => undefined);
-  });
+  }
+  useOnDataChanged(refresh);
 
   // Import order, kept as the default list order and as the tiebreak for other sorts. Not shown.
   const numbered = useMemo(() => (places ?? []).map((place, i) => ({ place, number: i + 1 })), [places]);

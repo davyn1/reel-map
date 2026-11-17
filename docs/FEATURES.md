@@ -26,7 +26,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 | Visit log: been here, 1–5 rating, visit date, notes, favorite; the other person's log shown alongside | `backend/app/routers/places.py`, `frontend/src/components/VisitLog.tsx` |
 | Add a place by hand (tap the map, your location or coordinates), with duplicate warnings | `backend/app/routers/places.py`, `frontend/src/pages/AddPlacePage.tsx`, `frontend/src/components/PinPicker.tsx` |
 | Remove a place from the map, with Undo; later imports don't bring it back | `backend/app/routers/places.py`, `frontend/src/pages/MapPage.tsx` |
-| Refresh on return: switching back to the app re-fetches places, the stat chips, the last-import line and the review queue (at most once per 5 s), keeping filters, the map view, an open popup and a half-typed note | `frontend/src/useRefreshOnReturn.ts`, `frontend/src/pages/MapPage.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/ReviewPage.tsx` |
+| Live sync: an open app polls a change counter every 10 s while on screen (and at once on return) and re-fetches places, the stat chips, the last-import line and the review queue only when it moved, keeping filters, the map view, an open popup and a half-typed note | `backend/app/sync.py`, `backend/app/routers/version.py`, `frontend/src/liveSync.ts`, `frontend/src/pages/MapPage.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/ReviewPage.tsx` |
 | Review queue for reels that couldn't be placed: fix, add extra spots, or reject | `backend/app/routers/reels.py`, `frontend/src/pages/ReviewPage.tsx` |
 | "Open in Google Maps" link per place | `backend/app/maps_link.py` |
 | Logins, plus a passcode-only login when there's a single account | `backend/app/auth.py`, `backend/app/routers/auth.py`, `backend/app/users.py`, `frontend/src/pages/LoginPage.tsx` |
@@ -38,7 +38,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 ## Testing
 
-- **115 backend tests** (pytest), 112 test functions in 11 files under `backend/tests/`. Locally all 115 pass. In CI 113 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
+- **124 backend tests** (pytest), 121 test functions in 12 files under `backend/tests/`. Locally all 124 pass. In CI 122 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
 - **What they cover:**
   - export parsing and reel flags
   - import rules and merging
@@ -51,6 +51,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
   - backup and restore
   - demo reset
   - alerts (with a fake sender)
+  - the live-sync change counter: which changes move it (including uploads and command-line imports) and which don't (reads, logins, no-op updates, failed requests, rollbacks)
 - **Frontend:** `npm run typecheck` (`tsc`). There are no frontend unit tests; UI changes are checked with scripted headless-Chrome runs against a throwaway demo server (not part of CI).
 - **Isolation:** tests use temporary paths for the backup file and uploads (`backend/tests/conftest.py`), and CI points the database and data folders at a throwaway directory.
 - **How they run:** `pytest` in `backend/` locally, and in CI on every push and pull request (`.github/workflows/ci.yml`).
@@ -128,7 +129,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 | What | Value | Source |
 |---|---|---|
-| Backend tests | 115 (113 pass + 2 skip in CI) | `pytest`, CI run 42995107168 |
+| Backend tests | 124 (122 pass + 2 skip in CI) | `pytest`, `.github/workflows/ci.yml` |
 | Upload size limit | 5 MB | `backend/app/routers/imports.py` |
 | Session length | 60 days | `backend/app/auth.py` |
 | Lockout | 5 failures → 15 minutes | `backend/app/auth.py` |
@@ -139,10 +140,10 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 | Quiet check interval / quiet threshold | 12 h / 7 days | `backend/app/main.py`, `backend/app/alerts.py` |
 | Alert HTTP timeout | 10 s | `backend/app/alerts.py` |
 | Fly health check | every 30 s, 5 s timeout | `fly.toml`, `fly.demo.toml` |
-| Refresh on return: minimum gap between refreshes | 5 s | `frontend/src/useRefreshOnReturn.ts` |
+| Live sync poll interval (while the app is on screen) | 10 s | `frontend/src/liveSync.ts` |
 
 ## Status
 
 - **Deployed:** yes, on Fly.io. Demo: https://yums-map-demo.fly.dev. The real app is private, behind a login.
 - **Collaborators:** one maintainer (GitHub `davyn1`). The real app is used by two people.
-- **Last updated:** 2026-11-13
+- **Last updated:** 2026-11-16

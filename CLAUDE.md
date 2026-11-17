@@ -28,10 +28,11 @@ backend/
     auth.py          password hashing (scrypt), session cookies, require_user, login lockout
     users.py         CLI: add / passwd / list / remove accounts (no sign-up page)
     alerts.py        Discord alerts when Muse's uploads fail or go quiet; CLI: test / check
+    sync.py          live sync: bumps app_state.version on every change to shared data (SQLAlchemy flush hook)
     demo/            public demo mode: sample_reels.json (made-up places) + reset()
     tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
-    routers/         auth.py (login/logout/me), imports.py (Muse upload, recent imports), places.py, reels.py (review queue)
+    routers/         auth.py (login/logout/me), imports.py (Muse upload, recent imports), places.py, reels.py (review queue), version.py (live sync)
     importer/
       parse.py       load export files; "" and null -> None
       flags.py       per-reel flags
@@ -50,7 +51,7 @@ frontend/
     components/TagEditor.tsx food tags + Edit: toggles, Save / Cancel / Reset to automatic
     components/PinPicker.tsx small street map: tap to place a pin, or "📍 Use my location"
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
-    useRefreshOnReturn.ts  re-fetch when the app comes back on screen (map, chips, review page)
+    liveSync.ts      live sync: poll GET /api/version, fire a data-changed event the screens re-fetch on
     index.css        styles (CSS variables on :root)
     basemap.tsx      MinimalBasemap (stripped-down, main map) and StreetBasemap (full detail, pin pickers)
     pages/MapPage.tsx, ReviewPage.tsx, LoginPage.tsx, AddPlacePage.tsx
@@ -126,6 +127,7 @@ To start over, delete `backend/food_map.db` and re-run the import.
 - **users**: id, username (unique, lowercase), display_name, password_hash (`scrypt$n$r$p$salt$hash`), created_at. Made with `python -m app.users`; there is no sign-up page.
 - **import_runs** (`ImportRun`): id, created_at, source (`upload` / `cli`), filename (with "(from muse)" / "(from <username>)"), ok, error, imported, pinned, approximate, needs_review, skipped, merged. Every import, uploaded or command-line, adds one.
 - **alerts_sent** (`AlertSent`): kind (`upload_failed` / `wrong_token` / `quiet`), sent_at. When each Discord alert last went out, for cooldowns.
+- **app_state** (`AppState`): one row (id 1) with `version`, bumped in the same transaction by every flush that adds, changes or deletes anything except login sessions and alert bookkeeping (`sync.py`, a `before_flush`/`after_flush` hook on SQLAlchemy's `Session` class, registered by `init_db`, so requests, the CLI importer, the demo reset and tests all count). A rolled-back change doesn't bump it. Bulk `UPDATE`s skip flush events; the only one is the CLI's one-off takeover of pre-login visits.
 - **sessions** (`LoginSession`): id, token_hash (SHA-256 of the cookie token; the raw token is never stored), user_id, created_at, expires_at (60 days).
 
 Schema changes: `create_all` only creates missing tables, so a column added to an existing table must also be listed in `db._ADDED_COLUMNS`; `init_db` adds it with `ALTER TABLE` and keeps the data.
@@ -223,6 +225,7 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 - `POST /api/places` — add a place by hand: `{name, lat, lng, address?, link?, is_approximate?, tags?, favorite?, visited?, notes?, force?}` → the place (201). 422 outside the Bay Area / bad link (must be http(s)) / unknown tag. 409 `{message, place_id, kind}`: `same_link` (that link is already on the map) or, unless `force`, `similar_nearby` (name score ≥ 80 within 150 m).
 - `GET /api/places` — every place still on the map (in import order; removed ones left out) with `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
 - `GET /api/stats` — `needs_review`, and the logged-in person's own `visited`, `favorites` (what the map's chips show)
+- `GET /api/version` → `{version}`: goes up whenever shared data changes (see `app_state`); `Cache-Control: no-store`. Open apps poll it every 10 s and re-fetch only when it moved
 - `POST /api/places/{id}/visit` — partial update of the visit log: any of `visited`, `visited_date`, `rating` (1–5), `notes`, `favorite`; only fields sent change, `null` clears rating/notes/date. `visited` takes the desired state rather than flipping, so a double click can't undo itself. Turning it on stamps today's date (unless one is sent); turning it off clears date and rating but keeps notes and favorite.
 - `PUT /api/places/{id}/removed` `{"removed": bool}` — take a place off the map or bring it back (404 unknown place); returns the place
 - `GET /api/tags` — every food tag, in display order
@@ -259,7 +262,7 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
   - list of matching places, sortable by default (import order) / favorites first / top rated / recently visited: the same food emoji in a status-colored circle, name, dish line (`captions.dishLine`: the caption cut at the first sign of location (📍, "in Hayward, CA", the place's own name, a street address, an @handle) or the end of the first sentence, dangling words and edge emoji dropped, ALL CAPS → sentence case, "…" only if Muse's 140-char snippet cut it mid-sentence), tags, stars + visit date, notes, the other person's line (no notes), city, "approximate location" (only on approximate places), "saved from @poster +N", favorite star and "Been here?" toggle. Clicking a card flies to its pin (opening its cluster) and opens the popup.
   - Pins with identical coordinates are fanned out ~150 m around the shared point (`spreadOverlaps`) so each is clickable.
   - Leaflet measures its container once; `FitToPins` re-measures on resize and only fits the view once the container has a real size (otherwise a map mounted hidden puts every pin on one point).
-  - Refresh on return (`useRefreshOnReturn`): when the app comes back on screen (`visibilitychange`, window `focus`, `pageshow`), the map re-fetches places and the last-import line, `App` the stat chips, and the review page its queue, at most once per 5 s. `mergePlaces` keeps the old object for every unchanged place (and the old list if nothing changed), and a refresh that was in flight when a change was made here is dropped (`edits` counter), so it can't undo it. Failures are silent (offline: keep what's shown). Filters, the map view, an open popup and a half-typed note stay as they are. It's not live while both apps are open; that's the roadmap's polling idea.
+  - Live sync (`liveSync.ts`): `App` runs one `useVersionPoller`, which asks `GET /api/version` every 10 s (`POLL_MS`) while the app is on screen and right away when it comes back (`visibilitychange`, window `focus`, `pageshow`; one request at a time), and nothing while hidden. When the number moved it fires `DATA_CHANGED_EVENT`; `useOnDataChanged` subscribers re-fetch: the map its places and last-import line, `App` the stat chips, the review page its queue. Your own changes move the number too, so they cost one extra re-fetch that changes nothing on screen. `mergePlaces` keeps the old object for every unchanged place (and the old list if nothing changed). A re-fetch that was in flight when a change was made here is not shown but retried a second later (`edits` counter), since its data may be older and the poller has already moved past that version. Failures are silent (offline: keep what's shown). Filters, the map view, an open popup and a half-typed note stay as they are.
   - Marker positions keep the same array while a place hasn't moved (`positions` in `MapPage`). react-leaflet compares `position` by reference, and the cluster plugin handles a "moved" marker by removing and re-adding it and reopening its popup, which blurs a note being typed and auto-pans the map. Without this, any change to the places list (a refresh, a been-here tick) did that to every marker.
 - Review page (`#/review`): one card per needs_review reel with venue, @poster reel link, Muse confidence/address/note, caption, flag badges (hover for description) and review_reason; filter by flag (with counts). "Fix" opens a panel:
   - New place: name, optional address, click the mini map to drop the pin (or type lat/lng), approximate checkbox

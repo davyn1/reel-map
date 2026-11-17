@@ -4,7 +4,7 @@ import AddPlacePage from "./pages/AddPlacePage";
 import LoginPage from "./pages/LoginPage";
 import MapPage from "./pages/MapPage";
 import ReviewPage from "./pages/ReviewPage";
-import { useRefreshOnReturn } from "./useRefreshOnReturn";
+import { useOnDataChanged, useVersionPoller } from "./liveSync";
 
 type Route = "map" | "review" | "add";
 
@@ -57,8 +57,9 @@ export default function App() {
   useEffect(() => {
     if (me) refreshStats();
   }, [me, refreshStats]);
-  // Coming back to the app: the chips may have changed on the other phone.
-  useRefreshOnReturn(() => {
+  // Live sync: one poller for the whole app; the chips refresh when shared data changed.
+  useVersionPoller(!!me);
+  useOnDataChanged(() => {
     if (me) refreshStats();
   });
 

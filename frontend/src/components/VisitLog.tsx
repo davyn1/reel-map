@@ -1,32 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FriendVisit, Place, VisitUpdate } from "../api";
+import { CheckIcon, StarIcon } from "./Icons";
 
-export function Stars({ rating }: { rating: number | null }) {
-  if (!rating) return null;
+/** "★ 4" in gold: a compact rating for list rows and friend lines. */
+export function Rating({ value }: { value: number | null }) {
+  if (!value) return null;
   return (
-    <span className="stars-static" aria-label={`${rating} out of 5`}>
-      {"★".repeat(rating)}
-      <span className="dim">{"★".repeat(5 - rating)}</span>
+    <span className="rating" aria-label={`rated ${value} out of 5`}>
+      <StarIcon size={13} filled />
+      {value}
     </span>
   );
 }
 
-/** Click a star to rate; click the current rating again to clear it. */
+/** Tap a star to rate; tap the current rating again to clear it. */
 export function StarInput({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const shown = hover ?? value ?? 0;
   return (
-    <span className="stars-input" onMouseLeave={() => setHover(null)}>
+    <span className="stars-input" role="group" aria-label="Rating">
       {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}
           type="button"
-          className={n <= shown ? "on" : ""}
-          onMouseEnter={() => setHover(n)}
+          className={n <= (value ?? 0) ? "on" : ""}
           onClick={() => onChange(value === n ? null : n)}
           aria-label={`${n} star${n > 1 ? "s" : ""}`}
+          aria-pressed={value === n}
         >
-          ★
+          <StarIcon size={24} filled={n <= (value ?? 0)} />
         </button>
       ))}
     </span>
@@ -37,38 +37,64 @@ export function FavoriteButton({ place, onUpdate }: { place: Place; onUpdate: (u
   return (
     <button
       type="button"
-      className={`fav-btn${place.favorite ? " on" : ""}`}
+      className={`icon-btn fav-btn${place.favorite ? " on" : ""}`}
       onClick={(e) => {
         e.stopPropagation();
         onUpdate({ favorite: !place.favorite });
       }}
       aria-pressed={place.favorite}
-      title={place.favorite ? "Remove from favorites" : "Add to favorites"}
+      aria-label={place.favorite ? "Want to go (tap to remove)" : "Want to go"}
+      title={place.favorite ? "Remove from want to go" : "Want to go"}
     >
-      {place.favorite ? "★" : "☆"}
+      <StarIcon size={22} filled={place.favorite} />
     </button>
   );
 }
 
-/** "Been here" toggle, and once visited: date, rating and notes. Notes save when the box loses focus. */
-export function VisitLog({ place, onUpdate }: { place: Place; onUpdate: (u: VisitUpdate) => Promise<void> }) {
+/** The big "Been here" toggle in the place view. Turning it on stamps today's date (server side). */
+export function BeenButton({ place, onUpdate }: { place: Place; onUpdate: (u: VisitUpdate) => void }) {
+  return (
+    <button
+      type="button"
+      className={`been-btn${place.visited ? " on" : ""}`}
+      aria-pressed={place.visited}
+      onClick={() => onUpdate({ visited: !place.visited })}
+    >
+      <CheckIcon size={18} />
+      {place.visited ? "Been here" : "Mark been here"}
+    </button>
+  );
+}
+
+/**
+ * Once visited: rating and date. Always: notes, saved when the box loses focus and also when the
+ * view closes mid-note (on a phone the sheet can close before the box ever blurs).
+ */
+export function VisitDetails({ place, onUpdate }: { place: Place; onUpdate: (u: VisitUpdate) => Promise<void> }) {
   const [notes, setNotes] = useState(place.notes ?? "");
   const [saved, setSaved] = useState(false);
   useEffect(() => setNotes(place.notes ?? ""), [place.notes]);
+
+  // Latest values for the save-on-close below, without re-running it on every keystroke.
+  const latest = useRef({ notes, stored: place.notes ?? "", onUpdate });
+  latest.current = { notes, stored: place.notes ?? "", onUpdate };
+  useEffect(
+    () => () => {
+      const { notes: n, stored, onUpdate: save } = latest.current;
+      if (n.trim() !== stored) save({ notes: n.trim() || null });
+    },
+    [],
+  );
 
   async function saveNotes() {
     if ((place.notes ?? "") === notes.trim()) return;
     await onUpdate({ notes: notes.trim() || null });
     setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    window.setTimeout(() => setSaved(false), 1800);
   }
 
   return (
-    <div className="visit-log">
-      <label className="visit-toggle">
-        <input type="checkbox" checked={place.visited} onChange={(e) => onUpdate({ visited: e.target.checked })} />
-        Been here
-      </label>
+    <div className="visit-details">
       {place.visited && (
         <div className="visit-row">
           <StarInput value={place.rating} onChange={(rating) => onUpdate({ rating })} />
@@ -82,36 +108,46 @@ export function VisitLog({ place, onUpdate }: { place: Place; onUpdate: (u: Visi
           />
         </div>
       )}
-      <textarea
-        className="visit-notes"
-        rows={2}
-        value={notes}
-        placeholder={place.visited ? "What did you get? Worth it?" : "Notes (what to order, hours…)"}
-        onChange={(e) => setNotes(e.target.value)}
-        onBlur={saveNotes}
-        maxLength={2000}
-      />
-      {saved && <span className="saved">Saved</span>}
+      <label className="notes-field">
+        <span className="field-label">
+          Notes
+          {saved && (
+            <span className="saved" role="status">
+              <CheckIcon size={14} /> Saved
+            </span>
+          )}
+        </span>
+        <textarea
+          className="visit-notes"
+          rows={2}
+          value={notes}
+          placeholder={place.visited ? "What did you get? Worth it?" : "What to order, hours…"}
+          onChange={(e) => setNotes(e.target.value)}
+          onBlur={saveNotes}
+          maxLength={2000}
+        />
+      </label>
     </div>
   );
 }
 
-/** "Alex: wants to go · been ★★★★ · “get the wings”" for each other person who logged this place. */
-export function FriendLines({ others, compact = false }: { others: FriendVisit[]; compact?: boolean }) {
+/** "Sam wants to go · been, ★ 4 · “get the wings”" for each other person who logged this place. */
+export function FriendLines({ others }: { others: FriendVisit[] }) {
   if (others.length === 0) return null;
   return (
-    <div className={`friend-lines${compact ? " compact" : ""}`}>
+    <div className="friend-lines">
       {others.map((o) => (
-        <div key={o.username} className="friend-line">
-          <b>{o.display_name}:</b>{" "}
-          {[
-            o.favorite ? "★ wants to go" : null,
-            o.visited ? `been${o.rating ? " " + "★".repeat(o.rating) : ""}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          {o.notes && !compact && <span className="friend-notes"> “{o.notes}”</span>}
-        </div>
+        <p key={o.username} className="friend-line">
+          <b>{o.display_name}</b>{" "}
+          {[o.favorite ? "wants to go" : null, o.visited ? "has been" : null].filter(Boolean).join(" · ")}
+          {o.visited && o.rating ? (
+            <>
+              {" "}
+              <Rating value={o.rating} />
+            </>
+          ) : null}
+          {o.notes && <span className="friend-notes"> “{o.notes}”</span>}
+        </p>
       ))}
     </div>
   );

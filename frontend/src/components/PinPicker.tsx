@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CircleMarker, MapContainer, useMap, useMapEvents } from "react-leaflet";
 import { StreetBasemap } from "../basemap";
+import { LocateIcon } from "./Icons";
 
 const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 
@@ -69,8 +70,9 @@ export default function PinPicker({
         )}
       </MapContainer>
       <div className="pin-picker-actions">
-        <button type="button" onClick={useMyLocation} disabled={locating}>
-          {locating ? "Finding you…" : "📍 Use my location"}
+        <button type="button" className="btn" onClick={useMyLocation} disabled={locating}>
+          <LocateIcon size={18} />
+          {locating ? "Finding you…" : "Use my location"}
         </button>
         {locError && <span className="loc-error">{locError}</span>}
       </div>

@@ -3,6 +3,20 @@ import { api, type AttachBody, type Place, type ReviewReel } from "../api";
 import PinPicker from "../components/PinPicker";
 import { useOnDataChanged } from "../liveSync";
 
+// Short, plain names for the importer's flags (backend/app/importer/flags.py). The server's longer
+// description stays in the title, and the card's reason line says what to do.
+const FLAG_LABELS: Record<string, string> = {
+  no_venue: "No name",
+  no_address: "No address",
+  city_only_address: "City only",
+  no_street_address: "No street number",
+  no_city: "No city",
+  no_coords: "No location",
+  coords_outside_bay_area: "Outside the Bay Area",
+  no_confidence: "Muse unsure",
+  multi_spot: "Several spots",
+};
+const flagLabel = (f: string) => FLAG_LABELS[f] ?? f.replace(/_/g, " ");
 
 function googleMapsSearch(query: string): string {
   return "https://www.google.com/maps/search/?" + new URLSearchParams({ api: "1", query });
@@ -63,14 +77,14 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
       <div className="review-toolbar">
         <h2>{queue ? `${queue.length} reel${queue.length === 1 ? "" : "s"} to sort out` : "Loading…"}</h2>
         <label>
-          Flag{" "}
+          Show{" "}
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="">All</option>
+            <option value="">All reels</option>
             {Object.keys(flagNames)
               .filter((f) => flagCounts[f])
               .map((f) => (
                 <option key={f} value={f}>
-                  {f} ({flagCounts[f]})
+                  {flagLabel(f)} ({flagCounts[f]})
                 </option>
               ))}
           </select>
@@ -78,15 +92,23 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
       </div>
       {message && (
         <div className="notice" role="status">
-          {message} <button onClick={() => setMessage(null)}>Dismiss</button>
+          <span>{message}</span>
+          <button type="button" className="link-btn" onClick={() => setMessage(null)}>
+            Dismiss
+          </button>
         </div>
       )}
       {error && (
-        <div className="error" role="alert">
-          {error} <button onClick={() => setError(null)}>Dismiss</button>
+        <div className="notice error" role="alert">
+          <span>{error}</span>
+          <button type="button" className="link-btn" onClick={() => setError(null)}>
+            Dismiss
+          </button>
         </div>
       )}
-      {queue && shown.length === 0 && <p className="empty">Nothing to review{filter ? " with this flag" : ""}.</p>}
+      {queue && shown.length === 0 && (
+        <p className="empty">{filter ? "Nothing left with this flag." : "All sorted. New reels that need a hand show up here."}</p>
+      )}
       {shown.map((reel) => (
         <ReelCard
           key={reel.id}
@@ -126,27 +148,34 @@ function ReelCard({ reel, places, flagNames, open, onToggle, onAttach, onResolve
     <article className={`reel-card${open ? " open" : ""}`}>
       <header>
         <div>
-          <h3>{reel.venue_raw ?? <span className="muted">(no venue)</span>}</h3>
-          <div className="muted">
+          <h3>{venue || "Unnamed spot"}</h3>
+          <p className="reel-sub">
             <a href={reel.post_url} target="_blank" rel="noreferrer">
-              {reel.posted_by ? `@${reel.posted_by}` : "Open reel"}
+              {reel.posted_by ? `@${reel.posted_by}` : "Open the reel"}
             </a>
-            {reel.muse_confidence && <> · Muse confidence: {reel.muse_confidence}</>}
             {reel.address_raw && <> · {reel.address_raw}</>}
-          </div>
+          </p>
         </div>
-        <button onClick={onToggle}>{open ? "Close" : "Fix"}</button>
+        <button type="button" onClick={onToggle} aria-expanded={open}>
+          {open ? "Close" : "Fix"}
+        </button>
       </header>
       <div className="flags">
         {reel.flags.map((f) => (
           <span key={f} className="flag" title={flagNames[f]}>
-            {f}
+            {flagLabel(f)}
           </span>
         ))}
       </div>
-      {reel.review_reason && <p className="reason">Why: {reel.review_reason}</p>}
-      {reel.muse_note && <p className="note">Muse: {reel.muse_note}</p>}
+      {reel.review_reason && <p className="reason">{reel.review_reason}</p>}
       {reel.dish && <p className="dish">“{reel.dish}”</p>}
+      {(reel.muse_note || reel.muse_confidence) && (
+        <details className="more">
+          <summary>More from Muse</summary>
+          {reel.muse_confidence && <p>Confidence: {reel.muse_confidence}</p>}
+          {reel.muse_note && <p>{reel.muse_note}</p>}
+        </details>
+      )}
       {hasPlace && (
         <p className="current">
           On the map as <strong>{reel.place!.name}</strong>
@@ -220,12 +249,17 @@ function FixPanel({ reel, places, defaultName, searchUrl, onAttach, onResolve, o
           </label>
         </fieldset>
       )}
-      <div className="tabs">
-        <button className={tab === "new" ? "active" : ""} onClick={() => setTab("new")}>
+      <div className="chip-row" role="group" aria-label="Where it goes">
+        <button type="button" className={`chip${tab === "new" ? " on" : ""}`} aria-pressed={tab === "new"} onClick={() => setTab("new")}>
           New place
         </button>
-        <button className={tab === "existing" ? "active" : ""} onClick={() => setTab("existing")}>
-          Existing place
+        <button
+          type="button"
+          className={`chip${tab === "existing" ? " on" : ""}`}
+          aria-pressed={tab === "existing"}
+          onClick={() => setTab("existing")}
+        >
+          A place already on the map
         </button>
       </div>
       {tab === "new" ? (
@@ -245,13 +279,14 @@ function FixPanel({ reel, places, defaultName, searchUrl, onAttach, onResolve, o
       )}
       <div className="fix-actions">
         {onResolve && (
-          <button disabled={busy} onClick={run(onResolve)}>
+          <button type="button" disabled={busy} onClick={run(onResolve)}>
             Done: keep {reel.place?.name}
             {reel.extra_places.length ? ` + ${reel.extra_places.length} more` : ""}
           </button>
         )}
         <button
-          className="danger"
+          type="button"
+          className="link-btn danger"
           disabled={busy}
           onClick={() => {
             if (window.confirm("Reject this reel? It will be removed from review and the map.")) run(onReject)();
@@ -299,9 +334,9 @@ function NewPlaceForm({
         Name <input value={name} onChange={(e) => setName(e.target.value)} required />
       </label>
       <label>
-        Address <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="optional" />
+        Address <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" />
       </label>
-      <div className="pin-hint muted">Click the map to drop the pin, or type coordinates.</div>
+      <div className="pin-hint muted">Tap the map to drop the pin.</div>
       <PinPicker
         pin={hasPin ? [latN, lngN] : null}
         onPick={(la, ln) => {
@@ -309,17 +344,21 @@ function NewPlaceForm({
           setLng(ln.toFixed(6));
         }}
       />
-      <div className="coords">
-        <label>
-          Lat <input value={lat} onChange={(e) => setLat(e.target.value)} inputMode="decimal" />
-        </label>
-        <label>
-          Lng <input value={lng} onChange={(e) => setLng(e.target.value)} inputMode="decimal" />
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={approx} onChange={(e) => setApprox(e.target.checked)} /> Approximate
-        </label>
-      </div>
+      <label className="check">
+        <input type="checkbox" checked={approx} onChange={(e) => setApprox(e.target.checked)} /> Approximate spot (pop-up,
+        truck, city-level)
+      </label>
+      <details className="more">
+        <summary>Type coordinates</summary>
+        <div className="coords">
+          <label>
+            Latitude <input value={lat} onChange={(e) => setLat(e.target.value)} inputMode="decimal" />
+          </label>
+          <label>
+            Longitude <input value={lng} onChange={(e) => setLng(e.target.value)} inputMode="decimal" />
+          </label>
+        </div>
+      </details>
       <button type="submit" className="primary" disabled={!valid || busy}>
         Save place
       </button>
@@ -353,7 +392,7 @@ function ExistingPlacePicker({
             <span>
               <strong>{p.name}</strong> <span className="muted">{p.address}</span>
             </span>
-            <button disabled={busy} onClick={() => onPick(p.id)}>
+            <button type="button" disabled={busy} onClick={() => onPick(p.id)}>
               Use this
             </button>
           </li>

@@ -6,18 +6,12 @@ export function TagEditor({
   place,
   allTags,
   onSave,
-  onResize,
 }: {
   place: Place;
   allTags: string[];
   onSave: (tags: string[] | null) => Promise<void>;
-  /** Called after the editor opens or closes, so the popup can re-measure and re-pan. */
-  onResize?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  useEffect(() => {
-    onResize?.();
-  }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
   const [picked, setPicked] = useState<string[]>(place.tags);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -37,8 +31,8 @@ export function TagEditor({
   if (!editing) {
     return (
       <div className="tag-line">
-        <span>{place.tags.length ? place.tags.join(" · ") : "No food tags"}</span>
-        {place.tags_edited && <span className="edited">edited</span>}
+        <span>{place.tags.length ? place.tags.join(", ") : "No food type yet"}</span>
+        {place.tags_edited && <span className="muted">(picked by hand)</span>}
         <button type="button" className="link-btn" onClick={() => setEditing(true)} disabled={allTags.length === 0}>
           Edit
         </button>
@@ -54,7 +48,7 @@ export function TagEditor({
           <button
             key={t}
             type="button"
-            className={`tag-chip${picked.includes(t) ? " on" : ""}`}
+            className={`chip${picked.includes(t) ? " on" : ""}`}
             aria-pressed={picked.includes(t)}
             onClick={() => setPicked(picked.includes(t) ? picked.filter((x) => x !== t) : [...picked, t])}
           >
@@ -64,14 +58,14 @@ export function TagEditor({
       </div>
       <div className="tag-editor-actions">
         <button type="button" className="primary" disabled={busy || !changed} onClick={() => save(picked)}>
-          Save tags
+          Save
         </button>
         <button type="button" disabled={busy} onClick={() => setEditing(false)}>
           Cancel
         </button>
         {place.tags_edited && (
           <button type="button" className="link-btn" disabled={busy} onClick={() => save(null)}>
-            Reset to automatic
+            Back to automatic
           </button>
         )}
       </div>

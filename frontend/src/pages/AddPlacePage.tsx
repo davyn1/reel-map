@@ -83,7 +83,7 @@ export default function AddPlacePage({ onAdded }: { onAdded: (placeId: number) =
 
         <div className="field">
           <span className="field-label">Where is it?</span>
-          <span className="muted small">Tap the map, use your location, or type coordinates.</span>
+          <span className="muted small">Tap the map to drop the pin, or use your location.</span>
           <PinPicker
             pin={hasPin ? [latN, lngN] : null}
             onPick={(la, ln) => {
@@ -91,61 +91,73 @@ export default function AddPlacePage({ onAdded }: { onAdded: (placeId: number) =
               setLng(ln.toFixed(6));
             }}
           />
-          <div className="coords">
-            <label>
-              Lat <input value={lat} onChange={(e) => setLat(e.target.value)} inputMode="decimal" />
-            </label>
-            <label>
-              Lng <input value={lng} onChange={(e) => setLng(e.target.value)} inputMode="decimal" />
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={approx} onChange={(e) => setApprox(e.target.checked)} /> Approximate (pop-up, truck)
-            </label>
-          </div>
-        </div>
-
-        <label>
-          Link <span className="muted small">(optional: the reel, their site, anything)</span>
-          <input value={link} onChange={(e) => setLink(e.target.value)} inputMode="url" placeholder="https://www.instagram.com/reel/…" />
-        </label>
-        <label>
-          Address <span className="muted small">(optional)</span>
-          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, Oakland, CA" />
-        </label>
-
-        {allTags.length > 0 && (
-          <div className="field">
-            <span className="field-label">
-              Food type <span className="muted small">(optional; otherwise worked out from the name)</span>
-            </span>
-            <div className="tag-options">
-              {allTags.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`tag-chip${tags.includes(t) ? " on" : ""}`}
-                  aria-pressed={tags.includes(t)}
-                  onClick={() => setTags(tags.includes(t) ? tags.filter((x) => x !== t) : [...tags, t])}
-                >
-                  {t}
-                </button>
-              ))}
+          <label className="check">
+            <input type="checkbox" checked={approx} onChange={(e) => setApprox(e.target.checked)} /> Approximate spot (pop-up,
+            truck, city-level)
+          </label>
+          <details className="more">
+            <summary>Type coordinates</summary>
+            <div className="coords">
+              <label>
+                Latitude <input value={lat} onChange={(e) => setLat(e.target.value)} inputMode="decimal" />
+              </label>
+              <label>
+                Longitude <input value={lng} onChange={(e) => setLng(e.target.value)} inputMode="decimal" />
+              </label>
             </div>
-          </div>
-        )}
+          </details>
+        </div>
 
         <div className="checks">
           <label className="check">
-            <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} /> ★ Want to go
+            <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} /> Want to go
           </label>
           <label className="check">
             <input type="checkbox" checked={visited} onChange={(e) => setVisited(e.target.checked)} /> Been here
           </label>
         </div>
         <label>
-          Notes <span className="muted small">(optional)</span>
+          <span>
+            Notes <span className="muted small">(optional)</span>
+          </span>
           <textarea className="visit-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What to order, hours…" />
         </label>
+
+        <details className="more">
+          <summary>Link, address and food type</summary>
+          <div className="more-fields">
+            <label>
+              <span>
+                Link <span className="muted small">(the reel, their site, anything)</span>
+              </span>
+              <input value={link} onChange={(e) => setLink(e.target.value)} inputMode="url" placeholder="https://www.instagram.com/reel/…" />
+            </label>
+            <label>
+              Address
+              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, Oakland, CA" />
+            </label>
+            {allTags.length > 0 && (
+              <div className="field">
+                <span className="field-label">
+                  Food type <span className="muted small">(otherwise worked out from the name)</span>
+                </span>
+                <div className="tag-options">
+                  {allTags.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      className={`chip${tags.includes(t) ? " on" : ""}`}
+                      aria-pressed={tags.includes(t)}
+                      onClick={() => setTags(tags.includes(t) ? tags.filter((x) => x !== t) : [...tags, t])}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
 
         {duplicate && (
           <div className="notice warn" role="alert">
@@ -163,7 +175,7 @@ export default function AddPlacePage({ onAdded }: { onAdded: (placeId: number) =
           </div>
         )}
         {error && (
-          <div className="error" role="alert">
+          <div className="notice error" role="alert">
             {error}
           </div>
         )}

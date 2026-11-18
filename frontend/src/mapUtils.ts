@@ -1,5 +1,6 @@
 import L from "leaflet";
 import type { Place } from "./api";
+import { STAR_SVG } from "./components/Icons";
 
 // Pins sharing exact coordinates (e.g. pop-ups pinned to a city centre) are fanned out
 // around the shared point by this many degrees so each one is clickable.
@@ -67,13 +68,12 @@ export function pinIcon(place: Place, selected: boolean): L.DivIcon {
   const key = `${glyph}|${classes}|${place.favorite}`;
   let icon = iconCache.get(key);
   if (!icon) {
-    const star = place.favorite ? '<b class="pin-star">★</b>' : "";
+    const star = place.favorite ? `<b class="pin-star">${STAR_SVG}</b>` : "";
     icon = L.divIcon({
       className: "pin-icon",
       html: `<div class="${classes}"><span>${glyph}</span></div>${star}`,
       iconSize: [32, 32],
       iconAnchor: [16, 39], // the tip sits ~7px below the rotated square
-      popupAnchor: [0, -36],
     });
     iconCache.set(key, icon);
   }

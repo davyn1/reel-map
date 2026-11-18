@@ -180,7 +180,7 @@ export const api = {
       body: JSON.stringify(update),
     }),
   stats: () => request<Stats>("/api/stats"),
-  version: () => request<{ version: number }>("/api/version"),
+  version: () => request<{ version: number; build: string | null }>("/api/version"),
   recentImports: (limit = 1) => request<ImportRun[]>(`/api/imports?limit=${limit}`),
   tags: () => request<string[]>("/api/tags"),
   /** Take a place off the map (true) or bring it back (false). Nothing is deleted. */

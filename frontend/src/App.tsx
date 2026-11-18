@@ -5,7 +5,23 @@ import AddPlacePage from "./pages/AddPlacePage";
 import LoginPage from "./pages/LoginPage";
 import MapPage from "./pages/MapPage";
 import ReviewPage from "./pages/ReviewPage";
-import { useOnDataChanged, useVersionPoller } from "./liveSync";
+import { useNewBuild, useOnDataChanged, useVersionPoller } from "./liveSync";
+
+/** "New version · Reload": shown when the server has a newer build than this page is running, e.g. a
+ * home-screen app resumed from the background after a deploy. The page itself is never cached
+ * (main.FrontendFiles), so a reload always gets the new one. */
+function UpdateNote() {
+  const available = useNewBuild();
+  if (!available) return null;
+  return (
+    <div className="update-note" role="status">
+      <span>New version</span>
+      <button type="button" className="link-btn" onClick={() => window.location.reload()}>
+        Reload
+      </button>
+    </div>
+  );
+}
 
 type Route = "map" | "review" | "add";
 
@@ -162,7 +178,9 @@ export default function App() {
 
   if (route === "map") {
     return (
-      <MapPage
+      <>
+        <UpdateNote />
+        <MapPage
         key={me.username}
         stats={stats}
         onChanged={refreshStats}
@@ -173,12 +191,14 @@ export default function App() {
           setFocusId(null);
           history.replaceState(null, "", "#/"); // so a refresh doesn't fly there again
         }}
-      />
+        />
+      </>
     );
   }
 
   return (
     <div className="app">
+      <UpdateNote />
       <header className="topbar">
         <a className="icon-btn" href="#/" aria-label="Back to the map">
           <ChevronLeftIcon size={22} />

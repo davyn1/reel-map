@@ -46,6 +46,7 @@ class PlaceOut(BaseModel):
 
 class VersionOut(BaseModel):
     version: int
+    build: str | None = None  # the served app's main script; None when no built map is served
 
 
 class StatsOut(BaseModel):

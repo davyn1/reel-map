@@ -27,7 +27,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 | Visit log: been here, 1–5 rating, visit date, notes, want to go (star); the other person's log shown alongside | `backend/app/routers/places.py`, `frontend/src/components/VisitLog.tsx` |
 | Add a place by hand (tap the map, your location or coordinates), with duplicate warnings | `backend/app/routers/places.py`, `frontend/src/pages/AddPlacePage.tsx`, `frontend/src/components/PinPicker.tsx` |
 | Remove a place from the map, with Undo; later imports don't bring it back | `backend/app/routers/places.py`, `frontend/src/pages/MapPage.tsx` |
-| Live sync: an open app polls a change counter every 10 s while on screen (and at once on return) and re-fetches places, the counts, the last import and the review queue only when it moved, keeping filters, the map view, the open place and a half-typed note | `backend/app/sync.py`, `backend/app/routers/version.py`, `frontend/src/liveSync.ts`, `frontend/src/pages/MapPage.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/ReviewPage.tsx` |
+| Live sync: an open app polls a change counter every 10 s while on screen (and at once on return) and re-fetches places, the counts, the last import and the review queue only when it moved, keeping filters, the map view, the open place and a half-typed note; it also notices a newer app build and offers "New version · Reload" | `backend/app/sync.py`, `backend/app/routers/version.py`, `frontend/src/liveSync.ts`, `frontend/src/pages/MapPage.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/ReviewPage.tsx` |
 | Review queue for reels that couldn't be placed: fix, add extra spots, or reject | `backend/app/routers/reels.py`, `frontend/src/pages/ReviewPage.tsx` |
 | Directions per place (a Google Maps link) | `backend/app/maps_link.py` |
 | Account menu: reels to sort out, last import, demo note, log out | `frontend/src/App.tsx` |
@@ -40,7 +40,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 ## Testing
 
-- **125 backend tests** (pytest), 122 test functions in 12 files under `backend/tests/`. Locally all 125 pass. In CI 123 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
+- **126 backend tests** (pytest), 123 test functions in 12 files under `backend/tests/`. Locally all 126 pass. In CI 124 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
 - **What they cover:**
   - export parsing and reel flags
   - import rules and merging
@@ -131,7 +131,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 | What | Value | Source |
 |---|---|---|
-| Backend tests | 125 (123 pass + 2 skip in CI) | `pytest`, `.github/workflows/ci.yml` |
+| Backend tests | 126 (124 pass + 2 skip in CI) | `pytest`, `.github/workflows/ci.yml` |
 | Upload size limit | 5 MB | `backend/app/routers/imports.py` |
 | Session length | 60 days | `backend/app/auth.py` |
 | Lockout | 5 failures → 15 minutes | `backend/app/auth.py` |

@@ -95,3 +95,23 @@ def test_a_rolled_back_change_doesnt_move_it(client, db):
         s.rollback()  # ...so it goes away with the change
     assert version(client) == v
     assert "Test Cafe" in places_by_name(client)
+
+
+def test_version_names_the_app_build_being_served(client, tmp_path, monkeypatch):
+    """Apps compare this with the script they're running to offer a reload after a deploy."""
+    import os
+
+    from app.routers import version as version_router
+
+    monkeypatch.setattr(version_router, "DIST", tmp_path)
+    monkeypatch.setattr(version_router, "_cache", None)
+    assert client.get("/api/version").json()["build"] is None  # nothing built (local dev)
+
+    index = tmp_path / "index.html"
+    index.write_text('<script type="module" src="/assets/index-AbC_12-x.js"></script>', encoding="utf-8")
+    assert client.get("/api/version").json()["build"] == "assets/index-AbC_12-x.js"
+
+    # A deploy replaces index.html: the new build shows up without a restart.
+    index.write_text('<script type="module" src="/assets/index-NeW999.js"></script>', encoding="utf-8")
+    os.utime(index, (index.stat().st_atime, index.stat().st_mtime + 5))
+    assert client.get("/api/version").json()["build"] == "assets/index-NeW999.js"

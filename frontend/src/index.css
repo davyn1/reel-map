@@ -216,6 +216,15 @@ details.more p { margin: 4px 0; font-size: var(--fs-sm); color: var(--muted); }
 .toast > span { flex: 1; min-width: 150px; padding: 8px 0; }
 .toast.error { color: var(--danger); }
 
+/* "New version · Reload", under the top bar on every screen. */
+.update-note {
+  position: fixed; z-index: 2100; left: 50%; transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top) + 128px); /* below the top bar and the food-type row */
+  display: flex; align-items: center; gap: 4px 12px; padding: 2px 6px 2px 16px; white-space: nowrap;
+  border-radius: var(--r-md); background: var(--surface-3); border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow); font-size: var(--fs-sm);
+}
+
 /* ---------- bottom sheet ---------- */
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 1150;

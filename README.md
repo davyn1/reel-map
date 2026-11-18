@@ -7,21 +7,21 @@ A phone-first map of Bay Area restaurants saved from Instagram food reels, with 
 **Live demo: [yums-map-demo.fly.dev](https://yums-map-demo.fly.dev)**. Click "Try the demo". It uses made-up places, and anything you change resets on its own.
 
 <p align="center">
-  <img src="docs/screenshots/popup-desktop.png" alt="Map with a place's popup: address, food tag, Google Maps link, been-here, stars, visit date, notes, the friend's rating and the reels it was saved from" width="480">
-  <img src="docs/screenshots/map-phone.png" alt="Phone view: stats, search, filters, Pick for me and the clustered map" width="150">
-  <img src="docs/screenshots/review-phone.png" alt="Review page: reels the import couldn't place, with flags explaining what's missing" width="150">
+  <img src="docs/screenshots/place-desktop.png" alt="Desktop: a place open in the side panel over the map, with been here, directions, stars, visit date, notes and the friend's rating" width="480">
+  <img src="docs/screenshots/map-phone.png" alt="Phone: the full-screen map with search, food types and the place count with Pick for me" width="150">
+  <img src="docs/screenshots/list-phone.png" alt="Phone: the list of places in the bottom sheet, with been-here ticks" width="150">
 </p>
 
 ## Features
 
 - **Map of saved places:** coral pins to try, teal pins visited, dashed pins approximate. Crowded areas cluster and split as you zoom.
 - **Search and filters** by spot, dish, poster, city or food type.
-- **Pick for me:** 🎲 flies to a random place you haven't tried, from whatever the filters show.
+- **Pick for me:** opens a random place you haven't tried, from whatever the filters show.
 - **Visit log:** mark places "been here" with stars, a date and a note, and favorite the ones you want to try.
-- **Two people, separate logs:** each person's ratings show in the other's popup, plus a "Both want to go" filter.
+- **Two people, separate logs:** each person's ratings show on the other's place view, plus a "Both want to go" filter.
 - **Review queue:** reels the import couldn't place wait here and can be fixed by dropping a pin.
 - **Add places by hand**, with a warning if it's already on the map.
-- **Open in Google Maps** from any place's popup.
+- **Directions** to any place, through Google Maps.
 - **Phone first:** installs to the home screen, clears the iPhone status bar, sized for tapping.
 
 ## Engineering highlights

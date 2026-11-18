@@ -24,7 +24,7 @@
 
 - [ ] Food crawl planner: pick a few places, order them sensibly, and open one multi-stop Google Maps link
 - [ ] Which posters to trust: each poster's average rating across the places you've tried
-- [ ] Watch the reel in the app: Instagram's embed in the popup (test first; it can be unreliable)
+- [ ] Watch the reel in the app: Instagram's embed in the place view (test first; it can be unreliable)
 - [ ] Year in food: a stats page with places tried by cuisine, average rating, cities explored, saved vs. visited
 - [ ] "Closed" marking: hide permanently closed places without losing their history
 
@@ -48,5 +48,6 @@
 - [x] Muse handoff: Muse sends its end-of-day export straight to the hosted app's upload endpoint, which imports it automatically (no Drive folder or PC needed)
 - [x] Real map hosted on Fly.io, with one shared account and a passcode-only login
 - [x] Remove from map: take a place off the map (e.g. after unsaving its reel), with Undo; later imports don't bring it back and its log is kept
+- [x] Calmer, map-first design: the map fills the screen, the list and each place live in a bottom sheet, filters in one sheet, the review queue and import status in the account menu, color only for status, one drawn icon set
 - [x] Live sync: an open map picks up the other phone's changes and Muse's uploads within about 10 seconds (and right away when you come back to the app), keeping filters, the map view, an open popup and a half-typed note
 - [x] CI/CD: every push runs the backend tests, the frontend typecheck and a Docker build; passing pushes to main deploy the demo, and the real map deploys with one click

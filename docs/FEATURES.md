@@ -20,15 +20,17 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 | Import Muse exports from the command line, with per-reel flags and a summary | `backend/app/importer/run.py`, `parse.py`, `flags.py`, `check.py` |
 | Duplicate handling: reel URLs normalized to one form; places merge only on the same street address and a name score ≥ 80 | `backend/app/importer/parse.py`, `backend/app/importer/matching.py` |
 | Upload endpoint for Muse (`POST /api/import`), with a history of import runs | `backend/app/routers/imports.py` |
-| Map with clustered pins, food-type icons, and fanned-out pins that share coordinates | `frontend/src/pages/MapPage.tsx`, `frontend/src/mapUtils.ts`, `frontend/src/basemap.tsx` |
-| Search and filters (city, pin status, food tag), list sorting, "Pick for me" | `frontend/src/pages/MapPage.tsx` |
+| Full-screen map with clustered pins, food-type icons, and fanned-out pins that share coordinates | `frontend/src/pages/MapPage.tsx`, `frontend/src/mapUtils.ts`, `frontend/src/basemap.tsx` |
+| Bottom sheet holding the list, each place's view and the filters (peek / half / full; drag, flick or tap) | `frontend/src/components/BottomSheet.tsx`, `frontend/src/pages/MapPage.tsx` |
+| Search, food-type chips, a filter sheet (status, pin accuracy, city, sort), "Pick for me" | `frontend/src/pages/MapPage.tsx` |
 | Food tags computed from keywords, with hand editing | `backend/app/tags.py`, `frontend/src/components/TagEditor.tsx` |
-| Visit log: been here, 1–5 rating, visit date, notes, favorite; the other person's log shown alongside | `backend/app/routers/places.py`, `frontend/src/components/VisitLog.tsx` |
+| Visit log: been here, 1–5 rating, visit date, notes, want to go (star); the other person's log shown alongside | `backend/app/routers/places.py`, `frontend/src/components/VisitLog.tsx` |
 | Add a place by hand (tap the map, your location or coordinates), with duplicate warnings | `backend/app/routers/places.py`, `frontend/src/pages/AddPlacePage.tsx`, `frontend/src/components/PinPicker.tsx` |
 | Remove a place from the map, with Undo; later imports don't bring it back | `backend/app/routers/places.py`, `frontend/src/pages/MapPage.tsx` |
-| Live sync: an open app polls a change counter every 10 s while on screen (and at once on return) and re-fetches places, the stat chips, the last-import line and the review queue only when it moved, keeping filters, the map view, an open popup and a half-typed note | `backend/app/sync.py`, `backend/app/routers/version.py`, `frontend/src/liveSync.ts`, `frontend/src/pages/MapPage.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/ReviewPage.tsx` |
+| Live sync: an open app polls a change counter every 10 s while on screen (and at once on return) and re-fetches places, the counts, the last import and the review queue only when it moved, keeping filters, the map view, the open place and a half-typed note | `backend/app/sync.py`, `backend/app/routers/version.py`, `frontend/src/liveSync.ts`, `frontend/src/pages/MapPage.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/ReviewPage.tsx` |
 | Review queue for reels that couldn't be placed: fix, add extra spots, or reject | `backend/app/routers/reels.py`, `frontend/src/pages/ReviewPage.tsx` |
-| "Open in Google Maps" link per place | `backend/app/maps_link.py` |
+| Directions per place (a Google Maps link) | `backend/app/maps_link.py` |
+| Account menu: reels to sort out, last import, demo note, log out | `frontend/src/App.tsx` |
 | Logins, plus a passcode-only login when there's a single account | `backend/app/auth.py`, `backend/app/routers/auth.py`, `backend/app/users.py`, `frontend/src/pages/LoginPage.tsx` |
 | JSON backup of hand-entered data, written after every change, with a restore command | `backend/app/backup.py` |
 | Discord alerts when a Muse upload fails, uses a wrong token, or stops arriving | `backend/app/alerts.py`, `.github/workflows/wake.yml` |

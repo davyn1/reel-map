@@ -291,6 +291,30 @@ def test_built_frontend_is_served_but_api_wins(tmp_path):
     assert c.get("/api/ping").json() == {"pong": True}
 
 
+def test_the_page_is_rechecked_and_hashed_assets_are_cached(tmp_path):
+    """After a deploy, phones must pick up the new page at once; the fingerprinted assets can stay cached."""
+    from fastapi import FastAPI
+
+    from app.main import mount_frontend
+
+    (tmp_path / "index.html").write_text("<title>Food Map</title>", encoding="utf-8")
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "index-AbC123.js").write_text("console.log(1)", encoding="utf-8")
+    (tmp_path / "manifest.webmanifest").write_text("{}", encoding="utf-8")
+    app = FastAPI()
+    mount_frontend(app, tmp_path)
+    c = TestClient(app)
+
+    for path in ("/", "/index.html", "/manifest.webmanifest"):
+        res = c.get(path)
+        assert res.status_code == 200 and res.headers["cache-control"] == "no-cache", path
+    asset = c.get("/assets/index-AbC123.js")
+    assert asset.headers["cache-control"] == "public, max-age=31536000, immutable"
+    # A re-check with the page's ETag is a cheap 304 that still says no-cache.
+    again = c.get("/", headers={"If-None-Match": c.get("/").headers["etag"]})
+    assert again.status_code == 304 and again.headers["cache-control"] == "no-cache"
+
+
 
 # ---- logins -------------------------------------------------------------------------------
 

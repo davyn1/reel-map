@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
 from app import alerts, demo
 from app.config import CORS_ORIGINS, FRONTEND_DIST
@@ -42,11 +43,27 @@ async def _check_quiet_periodically() -> None:
         await asyncio.sleep(12 * 3600)
 
 
+class FrontendFiles(StaticFiles):
+    """The built map, with cache headers. Everything outside assets/ (the page itself, the manifest,
+    the icons) is re-checked on every load, which is a cheap 304 when nothing changed. Without that,
+    a phone, especially the home-screen app, kept showing the old app for a while after a deploy.
+    Vite names the files in assets/ after their contents, so those never change and are cached for a
+    year."""
+
+    async def get_response(self, path: str, scope) -> Response:
+        response = await super().get_response(path, scope)
+        if path.replace("\\", "/").startswith("assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def mount_frontend(app: FastAPI, dist: Path) -> bool:
     """Serve the built map at / when it exists. Mounted last, so /api/* routes win."""
     if not (dist / "index.html").is_file():
         return False
-    app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+    app.mount("/", FrontendFiles(directory=dist, html=True), name="frontend")
     return True
 
 

@@ -40,7 +40,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 ## Testing
 
-- **124 backend tests** (pytest), 121 test functions in 12 files under `backend/tests/`. Locally all 124 pass. In CI 122 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
+- **125 backend tests** (pytest), 122 test functions in 12 files under `backend/tests/`. Locally all 125 pass. In CI 123 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
 - **What they cover:**
   - export parsing and reel flags
   - import rules and merging
@@ -131,7 +131,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 | What | Value | Source |
 |---|---|---|
-| Backend tests | 124 (122 pass + 2 skip in CI) | `pytest`, `.github/workflows/ci.yml` |
+| Backend tests | 125 (123 pass + 2 skip in CI) | `pytest`, `.github/workflows/ci.yml` |
 | Upload size limit | 5 MB | `backend/app/routers/imports.py` |
 | Session length | 60 days | `backend/app/auth.py` |
 | Lockout | 5 failures → 15 minutes | `backend/app/auth.py` |
@@ -143,6 +143,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 | Alert HTTP timeout | 10 s | `backend/app/alerts.py` |
 | Fly health check | every 30 s, 5 s timeout | `fly.toml`, `fly.demo.toml` |
 | Live sync poll interval (while the app is on screen) | 10 s | `frontend/src/liveSync.ts` |
+| Cache: the page, manifest and icons / hashed `assets/` | `no-cache` / 1 year, `immutable` | `backend/app/main.py` |
 
 ## Status
 

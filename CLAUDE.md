@@ -98,7 +98,7 @@ pytest
 npm run typecheck
 ```
 
-**One server (how the hosted app runs):** `npm run build` in `frontend/`, then `uvicorn app.main:app` alone serves the built map at `/` and the API at `/api/*` (`main.mount_frontend`, gzip on). The Vite dev server is only for working on the frontend.
+**One server (how the hosted app runs):** `npm run build` in `frontend/`, then `uvicorn app.main:app` alone serves the built map at `/` and the API at `/api/*` (`main.mount_frontend`, gzip on). `main.FrontendFiles` sets the cache headers: everything outside `assets/` (the page, manifest, icons) is `no-cache`, so a phone re-checks it on every load (a cheap 304) and picks up a deploy at once; Vite's content-hashed `assets/` files are cached for a year (`immutable`). Without this, the home-screen app kept showing the old app after a deploy. The Vite dev server is only for working on the frontend.
 
 Settings come from environment variables (or `.env`), so the hosted server can point everything at a persistent volume:
 

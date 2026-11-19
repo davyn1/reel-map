@@ -1,6 +1,7 @@
 import pytest
 
 from app.importer.flags import compute_flags, is_city_only
+from app.trips import in_home_box
 from app.importer.parse import ExportParseError, load_file
 from tests.conftest import REAL_EXPORT, row
 
@@ -64,11 +65,11 @@ def test_flags(write_export):
         row(post_url="u6"),
         row(address="Industrial Pkwy SW & Whipple Rd, Hayward, CA 94544, United States", post_url="u7"),
     ]
-    flags = [compute_flags(r) for r in load_file(write_export(rows)).reels]
+    flags = [compute_flags(r, in_home_box) for r in load_file(write_export(rows)).reels]
     assert flags[0] == ["no_venue", "no_address", "no_city", "no_coords"]
     assert flags[1] == ["city_only_address"]
     assert flags[2] == ["multi_spot"]
-    assert flags[3] == ["coords_outside_bay_area"]
+    assert flags[3] == ["coords_outside_area"]
     assert flags[4] == ["no_confidence"]
     assert flags[5] == []
     assert flags[6] == ["no_street_address"]

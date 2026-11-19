@@ -8,14 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app import backup
+from app import backup, trips
 from app.auth import require_user
 from app.db import get_session
 from app.maps_link import google_maps_url
-from app.importer.flags import in_bay_area
 from app.importer.matching import MIN_MERGE_NAME_SCORE, name_score
 from app.importer.parse import normalize_post_url
-from app.models import Place, Reel, User, Visit
+from app.models import Place, Reel, Trip, User, Visit
 from app.schemas import CreatePlaceIn, FriendVisitOut, PlaceOut, ReelBrief, RemovedIn, TagsIn, VisitIn
 from app.tags import TAG_ORDER, place_tags, sort_tags
 
@@ -50,6 +49,7 @@ def place_out(place: Place, me: str, names: dict[str, str]) -> PlaceOut:
     reels = sorted({r.id: r for r in [*place.reels, *place.extra_reels] if r.status != "rejected"}.values(), key=lambda r: r.id)
     return PlaceOut(
         id=place.id,
+        trip_id=place.trip_id,
         name=place.name,
         lat=place.lat,
         lng=place.lng,
@@ -73,14 +73,31 @@ def place_out(place: Place, me: str, names: dict[str, str]) -> PlaceOut:
     )
 
 
+def trip_or_404(session: Session, trip_id: int | None) -> Trip:
+    """The trip asked for, or the home trip when none is named."""
+    if trip_id is None:
+        return trips.home(session)
+    trip = session.get(Trip, trip_id)
+    if trip is None:
+        raise HTTPException(404, "trip not found")
+    return trip
+
+
 @router.get("", response_model=list[PlaceOut])
-def list_places(user: User = Depends(require_user), session: Session = Depends(get_session)):
-    places = session.scalars(
+def list_places(trip: str | None = None, user: User = Depends(require_user), session: Session = Depends(get_session)):
+    """Places still on the map in one trip (`trip` = its id; default the Bay Area), or in every trip
+    (`trip=all`, for the review page's "a place already on the map" search)."""
+    query = (
         select(Place)
         .options(selectinload(Place.reels), selectinload(Place.extra_reels), selectinload(Place.visits))
         .where(Place.removed.is_(False))
-        .order_by(Place.id)  # import order; the list's "Default" sort
+        .order_by(Place.id)  # import order; the list's "order saved" sort
     )
+    if trip != "all":
+        if trip is not None and not trip.isdigit():
+            raise HTTPException(422, "trip must be a trip id or 'all'")
+        query = query.where(Place.trip_id == trip_or_404(session, int(trip) if trip else None).id)
+    places = session.scalars(query)
     names = display_names(session)
     return [place_out(p, user.username, names) for p in places]
 
@@ -113,8 +130,9 @@ def create_place(body: CreatePlaceIn, user: User = Depends(require_user), sessio
     name = body.name.strip()
     if not name:
         raise HTTPException(422, "Give the place a name.")
-    if not in_bay_area(body.lat, body.lng):
-        raise HTTPException(422, "That pin is outside the Bay Area (are lat and lng swapped?)")
+    trip = trip_or_404(session, body.trip_id)
+    if not trip.contains(body.lat, body.lng):
+        raise HTTPException(422, f"That pin is outside {trip.name} (are lat and lng swapped?)")
     if body.tags is not None:
         unknown = sorted(set(body.tags) - set(TAG_ORDER))
         if unknown:
@@ -134,16 +152,17 @@ def create_place(body: CreatePlaceIn, user: User = Depends(require_user), sessio
                                   "That reel is already imported (it's in the review queue).",
                                   "place_id": on.id if on else None, "kind": "same_link"})
     if not body.force:
-        for other in session.scalars(select(Place).where(Place.is_approximate.is_(False), Place.removed.is_(False))):
+        nearby = select(Place).where(Place.is_approximate.is_(False), Place.removed.is_(False), Place.trip_id == trip.id)
+        for other in session.scalars(nearby):
             if _meters(body.lat, body.lng, other.lat, other.lng) <= NEARBY_METERS and name_score(name, other.name) >= MIN_MERGE_NAME_SCORE:
                 raise HTTPException(409, {"message": f"{other.name} is already on the map right there. Add anyway?",
                                           "place_id": other.id, "kind": "similar_nearby"})
 
-    place = Place(name=name, lat=body.lat, lng=body.lng, address=(body.address or "").strip() or None,
+    place = Place(name=name, lat=body.lat, lng=body.lng, address=(body.address or "").strip() or None, trip=trip,
                   is_approximate=body.is_approximate, tags_override=sort_tags(body.tags) if body.tags is not None else None)
     session.add(place)
     session.add(Reel(post_url=key, venue_raw=name, address_raw=place.address, lat_raw=body.lat, lng_raw=body.lng,
-                     place=place, status="matched", flags=[], source_file="manual", added_by=user.username))
+                     place=place, status="matched", flags=[], source_file="manual", added_by=user.username, trip=trip))
     notes = (body.notes or "").strip() or None
     if body.favorite or body.visited or notes:
         session.add(Visit(place=place, user=user.username, favorite=body.favorite, visited=body.visited,

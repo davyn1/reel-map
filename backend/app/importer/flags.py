@@ -1,14 +1,11 @@
 """Per-reel flags: what is missing or questionable in a reel's JSON row."""
 
 import re
+from collections.abc import Callable
 
 from app.importer.parse import RawReel
 
 CONFIDENCES = ("high", "medium", "low", "none")
-
-# Generous box around the Bay Area; also catches swapped or zeroed lat/lng.
-BAY_AREA_LAT = (36.8, 38.9)
-BAY_AREA_LNG = (-123.6, -121.2)
 
 FLAG_DESCRIPTIONS = {
     "no_venue": "venue is empty",
@@ -17,7 +14,8 @@ FLAG_DESCRIPTIONS = {
     "no_street_address": "address has no street number (landmark, intersection or ZIP), so the pin may be rough",
     "no_city": "city is empty",
     "no_coords": "lat/lng missing or not a number",
-    "coords_outside_bay_area": "lat/lng outside the Bay Area",
+    "coords_outside_area": "lat/lng outside the trip's area (or lat and lng swapped)",
+    "coords_outside_bay_area": "lat/lng outside the Bay Area",  # the same flag on reels from before trips
     "no_confidence": "confidence missing or not high/medium/low/none",
     "multi_spot": "reel covers several spots; only one is pinned",
 }
@@ -37,11 +35,8 @@ def has_street_number(address: str) -> bool:
     return any(p.strip()[:1].isdigit() for p in address.split(","))
 
 
-def in_bay_area(lat: float, lng: float) -> bool:
-    return BAY_AREA_LAT[0] <= lat <= BAY_AREA_LAT[1] and BAY_AREA_LNG[0] <= lng <= BAY_AREA_LNG[1]
-
-
-def compute_flags(reel: RawReel) -> list[str]:
+def compute_flags(reel: RawReel, in_area: Callable[[float, float], bool]) -> list[str]:
+    """`in_area` is the trip's area check (Trip.contains): the reel's pin must fall inside it."""
     flags = []
     if not reel.venue:
         flags.append("no_venue")
@@ -55,8 +50,8 @@ def compute_flags(reel: RawReel) -> list[str]:
         flags.append("no_city")
     if reel.lat is None or reel.lng is None:
         flags.append("no_coords")
-    elif not in_bay_area(reel.lat, reel.lng):
-        flags.append("coords_outside_bay_area")
+    elif not in_area(reel.lat, reel.lng):
+        flags.append("coords_outside_area")
     if reel.confidence not in CONFIDENCES:
         flags.append("no_confidence")
     if _MULTI_SPOT.search(reel.venue or "") or _MULTI_SPOT.search(reel.note or ""):

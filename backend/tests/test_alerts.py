@@ -59,7 +59,7 @@ def test_a_person_uploading_sees_the_error_instead(client, token, sent):
 
 
 def test_an_import_crash_is_recorded_and_alerted(db, token, sent, monkeypatch):
-    def boom(paths, session):
+    def boom(paths, session, trip=None):
         raise RuntimeError("disk full")
 
     monkeypatch.setattr(imports, "run", boom)

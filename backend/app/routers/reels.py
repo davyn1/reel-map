@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import backup
+from app import backup, trips
 from app.auth import require_user
 from app.db import get_session
-from app.importer.flags import FLAG_DESCRIPTIONS, in_bay_area
+from app.importer.flags import FLAG_DESCRIPTIONS
 from app.models import Place, Reel, User, Visit
 from app.tags import TAG_ORDER
-from app.schemas import AttachPlaceIn, PlaceBrief, ReviewReelOut, StatsOut
+from app.schemas import AttachPlaceIn, PlaceBrief, ReviewReelOut, StatsOut, TripBrief
 
 router = APIRouter(prefix="/api", tags=["reels"], dependencies=[Depends(require_user)])
 
@@ -35,6 +35,7 @@ def reel_out(reel: Reel) -> ReviewReelOut:
         review_reason=reel.review_reason,
         place=brief(reel.place) if reel.place else None,
         extra_places=[brief(p) for p in reel.extra_places],
+        trip=TripBrief(id=reel.trip.id, name=reel.trip.name, is_home=reel.trip.is_home),
     )
 
 
@@ -59,9 +60,13 @@ def drop_if_orphaned(session: Session, place: Place | None) -> None:
 
 
 @router.get("/stats", response_model=StatsOut)
-def stats(user: User = Depends(require_user), session: Session = Depends(get_session)):
-    """Counts for the map's chips; visited and favorites are the logged-in user's own, on places still on the map."""
-    mine = select(func.count(Visit.id)).join(Place).where(Visit.user == user.username, Place.removed.is_(False))
+def stats(trip: int | None = None, user: User = Depends(require_user), session: Session = Depends(get_session)):
+    """Counts for the app: reels to sort out (every trip), and the logged-in user's own visited and
+    favorites on places still on the map in one trip (`trip` = its id; default the Bay Area)."""
+    trip_id = trip if trip is not None else trips.home(session).id
+    mine = select(func.count(Visit.id)).join(Place).where(
+        Visit.user == user.username, Place.removed.is_(False), Place.trip_id == trip_id
+    )
     return StatsOut(
         needs_review=session.scalar(select(func.count(Reel.id)).where(Reel.status == "needs_review")),
         visited=session.scalar(mine.where(Visit.visited.is_(True))),
@@ -87,7 +92,7 @@ def review_queue(flag: str | None = Query(None), session: Session = Depends(get_
     reels = session.scalars(
         select(Reel)
         .where(Reel.status == "needs_review")
-        .options(selectinload(Reel.place), selectinload(Reel.extra_places))
+        .options(selectinload(Reel.place), selectinload(Reel.extra_places), selectinload(Reel.trip))
         .order_by(Reel.id)
     )
     return [reel_out(r) for r in reels if flag is None or flag in (r.flags or [])]
@@ -102,9 +107,10 @@ def attach_place(reel_id: int, body: AttachPlaceIn, session: Session = Depends(g
             raise HTTPException(404, "place not found")
     else:
         new = body.new_place
-        if not in_bay_area(new.lat, new.lng):
-            raise HTTPException(422, "lat/lng is outside the Bay Area (swapped?)")
-        place = Place(name=new.name.strip(), lat=new.lat, lng=new.lng, address=new.address, is_approximate=new.is_approximate)
+        if not reel.trip.contains(new.lat, new.lng):
+            raise HTTPException(422, f"lat/lng is outside {reel.trip.name} (swapped?)")
+        place = Place(name=new.name.strip(), lat=new.lat, lng=new.lng, address=new.address,
+                      is_approximate=new.is_approximate, trip=reel.trip)
         session.add(place)
 
     if body.mode == "add":

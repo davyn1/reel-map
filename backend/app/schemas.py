@@ -24,8 +24,33 @@ class FriendVisitOut(BaseModel):
     favorite: bool
 
 
+class TripOut(BaseModel):
+    id: int
+    slug: str  # Muse's upload address for this trip: /api/import?trip=<slug>
+    name: str
+    is_home: bool
+    south: float
+    west: float
+    north: float
+    east: float
+    places: int  # on the map (removed ones left out)
+
+
+class TripIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    south: float
+    west: float
+    north: float
+    east: float
+
+
+class TripRenameIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
 class PlaceOut(BaseModel):
     id: int
+    trip_id: int
     name: str
     lat: float
     lng: float
@@ -62,6 +87,12 @@ class PlaceBrief(BaseModel):
     is_approximate: bool
 
 
+class TripBrief(BaseModel):
+    id: int
+    name: str
+    is_home: bool
+
+
 class ReviewReelOut(BaseModel):
     id: int
     post_url: str
@@ -79,6 +110,7 @@ class ReviewReelOut(BaseModel):
     review_reason: str | None
     place: PlaceBrief | None
     extra_places: list[PlaceBrief]
+    trip: TripBrief  # the trip it was imported into; new places for it must fall in that trip's area
 
 
 class CreatePlaceIn(BaseModel):
@@ -95,6 +127,7 @@ class CreatePlaceIn(BaseModel):
     visited: bool = False
     notes: str | None = Field(None, max_length=2000)
     force: bool = False  # add even though a similar place is nearby
+    trip_id: int | None = None  # the trip it goes in; default the Bay Area (home)
 
 
 class RemovedIn(BaseModel):

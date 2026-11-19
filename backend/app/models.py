@@ -14,10 +14,31 @@ reel_extra_places = Table(
 )
 
 
+class Trip(Base):
+    """A map of its own: the Bay Area (the home trip, made automatically) or a trip somewhere else.
+    Its area is a lat/lng box: pins must fall inside it, and the map opens on it."""
+
+    __tablename__ = "trips"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String, unique=True)  # for Muse's upload address: /api/import?trip=<slug>
+    name: Mapped[str] = mapped_column(String)
+    south: Mapped[float] = mapped_column(Float)
+    west: Mapped[float] = mapped_column(Float)
+    north: Mapped[float] = mapped_column(Float)
+    east: Mapped[float] = mapped_column(Float)
+    is_home: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+
+    def contains(self, lat: float, lng: float) -> bool:
+        return self.south <= lat <= self.north and self.west <= lng <= self.east
+
+
 class Place(Base):
     __tablename__ = "places"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    trip_id: Mapped[int | None] = mapped_column(ForeignKey("trips.id"))
     name: Mapped[str] = mapped_column(String)
     lat: Mapped[float] = mapped_column(Float)
     lng: Mapped[float] = mapped_column(Float)
@@ -29,6 +50,7 @@ class Place(Base):
     # linked so later imports skip them, and its log and tags are kept in case it's brought back.
     removed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    trip: Mapped[Trip | None] = relationship()
     reels: Mapped[list["Reel"]] = relationship(back_populates="place")
     extra_reels: Mapped[list["Reel"]] = relationship(secondary=reel_extra_places, back_populates="extra_places")
     visits: Mapped[list["Visit"]] = relationship(back_populates="place")
@@ -54,7 +76,9 @@ class Reel(Base):
     review_reason: Mapped[str | None] = mapped_column(Text)
     source_file: Mapped[str | None] = mapped_column(String)  # export file name, or "manual"
     added_by: Mapped[str | None] = mapped_column(String)  # username, for places added by hand in the app
+    trip_id: Mapped[int | None] = mapped_column(ForeignKey("trips.id"))  # the trip it was imported into
 
+    trip: Mapped[Trip | None] = relationship()
     place: Mapped[Place | None] = relationship(back_populates="reels")
     extra_places: Mapped[list[Place]] = relationship(secondary=reel_extra_places, back_populates="extra_reels")
 

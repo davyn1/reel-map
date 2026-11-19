@@ -8,9 +8,13 @@
 Who may upload: whoever sends the secret token from FOOD_MAP_IMPORT_TOKEN (Muse), or a
 logged-in person. With no token configured, token uploads are switched off.
 
-Every upload is saved first, as data/reels-upload-<UTC time>-<random>.json (the server's own history
-of exports), then imported exactly like `python -m app.importer.run`: reels already seen are
-skipped. A file that isn't valid JSON is kept as .invalid and the reply says where it broke.
+A trip's collection goes to /api/import?trip=<slug> (the trip's slug, shown in the app); without
+?trip= it goes to the Bay Area, as before trips existed.
+
+Every upload is saved first, as data/reels-upload-<UTC time>-<random>.json (a trip's under
+data/trips/<slug>/; the server's own history of exports), then imported exactly like
+`python -m app.importer.run`: reels already seen are skipped. A file that isn't valid JSON is kept
+as .invalid and the reply says where it broke.
 """
 
 import hmac
@@ -23,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import alerts, backup, demo
+from app import alerts, backup, demo, trips
 from app.auth import COOKIE_NAME, require_user, user_for_token
 from app.config import DATA_DIR
 from app.db import get_session
@@ -66,12 +70,17 @@ def _stamp() -> str:
 
 
 @router.post("/import")
-async def upload(request: Request, source: str = Depends(allow_upload), session: Session = Depends(get_session)):
+async def upload(request: Request, trip: str | None = None, source: str = Depends(allow_upload),
+                 session: Session = Depends(get_session)):
     def refuse(status: int, detail: str) -> HTTPException:
         # Muse's uploads happen with nobody watching; a person uploading sees the error themselves.
         if source == "muse":
             alerts.upload_failed(session, detail)
         return HTTPException(status, detail)
+
+    target = trips.by_slug(session, trip) if trip else trips.home(session)
+    if target is None:
+        raise refuse(404, f"No trip {trip!r}. Check the trip's upload address in the app.")
 
     too_big = f"Upload is over {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
     declared = request.headers.get("content-length")
@@ -85,12 +94,13 @@ async def upload(request: Request, source: str = Depends(allow_upload), session:
     if not _one_at_a_time.acquire(blocking=False):
         raise HTTPException(409, "Another import is running; try again in a minute.")
     try:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        path = DATA_DIR / f"reels-upload-{_stamp()}.json"
+        folder = DATA_DIR if target.is_home else DATA_DIR / "trips" / target.slug
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"reels-upload-{_stamp()}.json"
         path.write_bytes(body)
-        label = f"{path.name} (from {source})"
+        label = f"{path.name} (from {source})" if target.is_home else f"{path.name} (from {source}, {target.name})"
         try:
-            summary = run([path], session)
+            summary = run([path], session, target)
         except ExportParseError as e:
             bad = path.with_suffix(".invalid")
             path.replace(bad)
@@ -110,7 +120,7 @@ async def upload(request: Request, source: str = Depends(allow_upload), session:
             raise refuse(500, f"Import failed on the server ({type(e).__name__}). The file is kept as {path.name}.") from e
         record_run(session, "upload", label, summary)
         backup.save_log_quietly(session)
-        return {"saved_as": path.name, **summary.as_dict()}
+        return {"saved_as": path.name, "trip": target.slug, **summary.as_dict()}
     finally:
         _one_at_a_time.release()
 

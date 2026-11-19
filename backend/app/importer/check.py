@@ -8,6 +8,7 @@ import sys
 from collections import defaultdict
 
 from app.importer.flags import FLAG_DESCRIPTIONS, compute_flags
+from app.trips import in_home_box
 from app.importer.parse import ExportParseError, find_export_files, load_file
 
 
@@ -35,7 +36,7 @@ def main(argv=None) -> int:
         for index, reason in parsed.skipped:
             print(f"SKIPPED {path.name} item {index}: {reason}")
         for reel in parsed.reels:
-            for flag in compute_flags(reel):
+            for flag in compute_flags(reel, in_home_box):
                 by_flag[flag].append(reel)
 
     flags = [args.flag] if args.flag else [f for f in FLAG_DESCRIPTIONS if f in by_flag]

@@ -12,7 +12,7 @@ from starlette.responses import Response
 from app import alerts, demo
 from app.config import CORS_ORIGINS, FRONTEND_DIST
 from app.db import SessionLocal, init_db
-from app.routers import auth, imports, places, reels, version
+from app.routers import auth, imports, places, reels, trips, version
 
 
 @asynccontextmanager
@@ -79,6 +79,7 @@ app.include_router(auth.router)
 app.include_router(imports.router)
 app.include_router(places.router)
 app.include_router(reels.router)
+app.include_router(trips.router)
 app.include_router(version.router)
 
 

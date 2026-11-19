@@ -7,17 +7,20 @@ is written here after every change, so it can be kept and restored onto a fresh 
 Places are identified by their reels' post URLs (stable across re-imports), not database IDs.
 Output is sorted and has no timestamps, so a diff shows only what changed.
 
-Format (version 2):
-    {"version": 2,
+Format (version 3):
+    {"version": 3,
+     "trips": [{"slug", "name", "south", "west", "north", "east"}, ...],
      "users": {"davy": {"places": [{"name", "post_urls", "visited"?, "visited_date"?, "rating"?,
                                     "notes"?, "favorite"?}, ...]}, ...},
      "tags":  [{"name", "post_urls", "tags": [...]}, ...],
      "removed": [{"name", "post_urls"}, ...],
-     "manual_places": [{"post_url", "name", "lat", "lng", "address"?, "is_approximate", "added_by"}, ...]}
-Places added by hand in the app aren't in any Muse export, so they're saved whole in
-"manual_places" and recreated on restore (before visits and tags are applied).
+     "manual_places": [{"post_url", "name", "lat", "lng", "address"?, "is_approximate", "added_by", "trip"?}, ...]}
+"trips" are the trips besides the Bay Area (which is always made automatically); restore recreates
+them first, so trip exports in data/trips/<slug>/ can be imported after it. Places added by hand
+in the app aren't in any Muse export, so they're saved whole in "manual_places" (with their trip's
+slug, unless it's the Bay Area) and recreated on restore (before visits and tags are applied).
 "removed" lists places taken off the map by hand, so a restore keeps them hidden.
-Version 1 (before logins: one person's entries, tags inline) still restores, into --user.
+Versions 1 (before logins: one person's entries, tags inline) and 2 (before trips) still restore.
 
 All personal data in the repo lives under personal/; see the README to remove it.
 
@@ -30,17 +33,17 @@ import argparse
 import json
 import logging
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import PERSONAL_DIR
-from app.models import Place, Reel, User, Visit
+from app.models import Place, Reel, Trip, User, Visit
 
 LOG_PATH = PERSONAL_DIR / "my-log.json"
-VERSION = 2
+VERSION = 3
 LEGACY_USER = "me"  # visits.user before logins existed
 
 
@@ -78,9 +81,14 @@ def export_log(session: Session) -> dict:
         {k: v for k, v in {
             "post_url": r.post_url, "name": r.place.name, "lat": r.place.lat, "lng": r.place.lng,
             "address": r.place.address, "is_approximate": r.place.is_approximate, "added_by": r.added_by,
+            "trip": r.place.trip.slug if r.place.trip is not None and not r.place.trip.is_home else None,
         }.items() if v is not None}
         for r in session.scalars(select(Reel).where(Reel.source_file == "manual"))
         if r.place is not None
+    ]
+    trips = [
+        {"slug": t.slug, "name": t.name, "south": t.south, "west": t.west, "north": t.north, "east": t.east}
+        for t in session.scalars(select(Trip).where(Trip.is_home.is_(False)).order_by(Trip.slug))
     ]
     for place in places:
         if not _post_urls(place):
@@ -94,6 +102,7 @@ def export_log(session: Session) -> dict:
             removed.append({"name": place.name, "post_urls": _post_urls(place)})
     return {
         "version": VERSION,
+        "trips": trips,
         "users": {u: {"places": sorted(entries, key=_sort_key)} for u, entries in sorted(users.items())},
         "tags": sorted(tags, key=_sort_key),
         "removed": sorted(removed, key=_sort_key),
@@ -152,17 +161,27 @@ def _upgrade(data: dict, v1_user: str) -> dict:
 
 def restore_log(session: Session, data: dict, v1_user: str = LEGACY_USER) -> tuple[int, list[str]]:
     """Apply a log to the database. Returns (entries restored, names of entries with no matching place)."""
+    from app import trips as trips_mod  # noqa: PLC0415  (app.trips imports models, like this module)
+
     data = _upgrade(data, v1_user)
     restored, unmatched = 0, []
+    for t in data.get("trips", []):
+        if trips_mod.by_slug(session, t["slug"]) is None:
+            session.add(Trip(slug=t["slug"], name=t["name"], south=t["south"], west=t["west"], north=t["north"],
+                             east=t["east"], is_home=False, created_at=datetime.now(timezone.utc).replace(tzinfo=None)))
+            restored += 1
+    session.flush()
+    home = trips_mod.home(session)
     for m in data.get("manual_places", []):
         if session.scalars(select(Reel).where(Reel.post_url == m["post_url"])).first() is not None:
             continue  # already there (e.g. restoring onto the same database)
+        trip = (trips_mod.by_slug(session, m["trip"]) if m.get("trip") else None) or home
         place = Place(name=m["name"], lat=m["lat"], lng=m["lng"], address=m.get("address"),
-                      is_approximate=bool(m.get("is_approximate")))
+                      is_approximate=bool(m.get("is_approximate")), trip=trip)
         session.add(place)
         session.add(Reel(post_url=m["post_url"], venue_raw=m["name"], address_raw=m.get("address"), lat_raw=m["lat"],
                          lng_raw=m["lng"], place=place, status="matched", flags=[], source_file="manual",
-                         added_by=m.get("added_by")))
+                         added_by=m.get("added_by"), trip=trip))
         restored += 1
     session.flush()
     for username, section in data.get("users", {}).items():

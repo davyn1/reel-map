@@ -44,7 +44,8 @@ def test_export_is_per_person_with_shared_tags(write_export):
     s = fresh_session(write_export)
     log_some(s)
     assert export_log(s) == {
-        "version": 2,
+        "version": 3,
+        "trips": [],  # only the Bay Area, which is always made automatically
         "users": {
             "alex": {"places": [{"name": "Stans Donuts", "post_urls": ["https://ig/u1", "https://ig/u2"], "favorite": True}]},
             "davy": {

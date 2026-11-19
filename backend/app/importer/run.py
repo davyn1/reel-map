@@ -1,10 +1,12 @@
 """Import Muse exports into the database.
 
-    python -m app.importer.run [file]
+    python -m app.importer.run [file] [--trip SLUG]
 
-With no file, imports every data/reels*.json. Reels whose post_url is already in
-the database are skipped, so re-running only adds new reels. Pins use Muse's own
-coordinates; nothing calls an external API.
+With no file, imports every data/reels*.json into the Bay Area (home) trip, and every
+data/trips/<slug>/reels*.json into that trip (trips that exist; restore the backup first after
+starting over). A file given by hand goes into --trip, or home. Reels whose post_url is already in
+the database are skipped, so re-running only adds new reels. Pins use Muse's own coordinates;
+nothing calls an external API.
 """
 
 import argparse
@@ -16,6 +18,8 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import trips
+from app.config import DATA_DIR
 from app.db import SessionLocal, init_db
 from app.importer.flags import FLAG_DESCRIPTIONS, compute_flags
 from app.importer.matching import (
@@ -27,10 +31,10 @@ from app.importer.matching import (
     normalize_name,
 )
 from app.importer.parse import ExportParseError, RawReel, find_export_files, load_file
-from app.models import ImportRun, Place, Reel
+from app.models import ImportRun, Place, Reel, Trip
 
 # Flags that mean the row can't be put on the map at all.
-BLOCKING_FLAGS = ("no_venue", "no_coords", "coords_outside_bay_area", "no_confidence")
+BLOCKING_FLAGS = ("no_venue", "no_coords", "coords_outside_area", "coords_outside_bay_area", "no_confidence")
 
 
 @dataclass
@@ -78,12 +82,13 @@ class Decision:
 
 
 class Importer:
-    def __init__(self, session: Session):
+    def __init__(self, session: Session, trip: Trip):
         self.session = session
+        self.trip = trip
         self.summary = Summary()
 
     def import_reel(self, raw: RawReel) -> None:
-        flags = compute_flags(raw)
+        flags = compute_flags(raw, self.trip.contains)
         decision = self._decide(raw, flags)
         if "multi_spot" in flags and decision.status == "matched":
             decision.status = "needs_review"
@@ -106,6 +111,7 @@ class Importer:
                 flags=flags,
                 review_reason=decision.reason,
                 source_file=raw.source_file,
+                trip=self.trip,
             )
         )
         self.session.flush()
@@ -138,7 +144,7 @@ class Importer:
         """Same pop-up in the same city shares a place; different pop-ups pinned to one city don't."""
         key = normalize_name(raw.venue)
         city = (raw.city or "").lower()
-        for place in self.session.scalars(select(Place).where(Place.is_approximate.is_(True))):
+        for place in self.session.scalars(select(Place).where(Place.is_approximate.is_(True), Place.trip_id == self.trip.id)):
             same_city = any((r.city_raw or "").lower() == city for r in place.reels)
             if normalize_name(place.name) == key and same_city:
                 return Decision(place, "matched", merged=True)
@@ -149,7 +155,7 @@ class Importer:
         and address alone isn't either (food halls and malls share addresses)."""
         key = normalize_address(raw.address)
         if key:
-            for place in self.session.scalars(select(Place).where(Place.is_approximate.is_(False))):
+            for place in self.session.scalars(select(Place).where(Place.is_approximate.is_(False), Place.trip_id == self.trip.id)):
                 if normalize_address(place.address) == key and name_score(place.name, raw.venue) >= MIN_MERGE_NAME_SCORE:
                     return Decision(place, "matched", merged=True)
         return self._new_place(raw, is_approximate=False)
@@ -161,15 +167,17 @@ class Importer:
             lng=raw.lng,
             address=display_address(raw.address),
             is_approximate=is_approximate,
+            trip=self.trip,
         )
         self.session.add(place)
         return Decision(place, "matched")
 
 
-def run(paths, session: Session) -> Summary:
-    """Parse every file first, so a bad file aborts before anything is written."""
+def run(paths, session: Session, trip: Trip | None = None) -> Summary:
+    """Import into `trip` (default: the home trip). Parse every file first, so a bad file aborts
+    before anything is written. Places only merge with places in the same trip."""
     parsed_files = [load_file(p) for p in paths]
-    importer = Importer(session)
+    importer = Importer(session, trip or trips.home(session))
     known = set(session.scalars(select(Reel.post_url)))
     for parsed in parsed_files:
         for index, reason in parsed.skipped:
@@ -199,27 +207,44 @@ def record_run(session: Session, source: str, filename: str | None, summary: Sum
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("file", nargs="?", help="one export file (default: every data/reels*.json)")
+    parser.add_argument("file", nargs="?", help="one export file (default: every data/reels*.json, and data/trips/<slug>/)")
+    parser.add_argument("--trip", help="the trip a file given by hand goes into (its slug; default: the Bay Area)")
     args = parser.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows consoles default to cp1252
 
-    paths = find_export_files(args.file)
-    if not paths:
-        print("No export files found (looked for data/reels*.json).")
-        return 1
-
     init_db()
     with SessionLocal() as session:
-        names = ", ".join(p.name for p in paths)
-        try:
-            summary = run(paths, session)
-        except ExportParseError as e:
-            record_run(session, "cli", names, error=str(e))
-            print(f"PARSE ERROR {e}\nNothing was imported.")
+        if args.file:
+            trip = trips.by_slug(session, args.trip) if args.trip else trips.home(session)
+            if trip is None:
+                print(f"No trip {args.trip!r}. Make it in the app first.")
+                return 1
+            batches = [(trip, find_export_files(args.file))]
+        else:
+            batches = [(trips.home(session), find_export_files())]
+            trip_dir = DATA_DIR / "trips"
+            for folder in sorted(trip_dir.glob("*")) if trip_dir.is_dir() else []:
+                trip = trips.by_slug(session, folder.name)
+                if trip is None:
+                    print(f"Skipping data/trips/{folder.name}: no such trip (restore the backup first).")
+                    continue
+                batches.append((trip, sorted(folder.glob("reels*.json"))))
+        batches = [(t, paths) for t, paths in batches if paths]
+        if not batches:
+            print("No export files found (looked for data/reels*.json and data/trips/<slug>/reels*.json).")
             return 1
-        record_run(session, "cli", names, summary)
-    print(f"Imported from {', '.join(p.name for p in paths)}")
-    summary.print()
+        for trip, paths in batches:
+            names = ", ".join(p.name for p in paths)
+            try:
+                summary = run(paths, session, trip)
+            except ExportParseError as e:
+                record_run(session, "cli", names, error=str(e))
+                print(f"PARSE ERROR {e}")
+                print(f"Nothing was imported into {trip.name}.")
+                return 1
+            record_run(session, "cli", names if trip.is_home else f"{names} ({trip.name})", summary)
+            print(f"Imported into {trip.name} from {names}")
+            summary.print()
     return 0
 
 

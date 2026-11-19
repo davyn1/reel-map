@@ -74,6 +74,12 @@ export const ChevronLeftIcon = (p: Props) => (
   </Svg>
 );
 
+export const ChevronDownIcon = (p: Props) => (
+  <Svg {...p}>
+    <path d="m6 9.5 6 6 6-6" />
+  </Svg>
+);
+
 export const CloseIcon = (p: Props) => (
   <Svg {...p}>
     <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />

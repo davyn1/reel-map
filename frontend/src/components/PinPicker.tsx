@@ -3,7 +3,6 @@ import { CircleMarker, MapContainer, useMap, useMapEvents } from "react-leaflet"
 import { StreetBasemap } from "../basemap";
 import { LocateIcon } from "./Icons";
 
-const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 
 function ClickToPick({ onPick }: { onPick: (lat: number, lng: number) => void }) {
   useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) });
@@ -26,9 +25,11 @@ function FollowPin({ pin, nonce }: { pin: [number, number] | null; nonce: number
 export default function PinPicker({
   pin,
   onPick,
+  center,
 }: {
   pin: [number, number] | null;
   onPick: (lat: number, lng: number) => void;
+  center: [number, number]; // where the map opens without a pin: the middle of the trip's area
 }) {
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export default function PinPicker({
 
   return (
     <div className="pin-picker-wrap">
-      <MapContainer center={pin ?? BAY_AREA_CENTER} zoom={pin ? 15 : 9} maxZoom={19} className="pin-picker">
+      <MapContainer center={pin ?? center} zoom={pin ? 15 : 9} maxZoom={19} className="pin-picker">
         <StreetBasemap />
         <ClickToPick onPick={onPick} />
         <FollowPin pin={pin} nonce={follow} />

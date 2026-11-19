@@ -44,8 +44,42 @@ export interface DemoInfo {
   source_url: string;
 }
 
+/** A map: the Bay Area (home) or a trip elsewhere. Its area is a lat/lng box. */
+export interface Trip {
+  id: number;
+  slug: string; // Muse's upload address for it: /api/import?trip=<slug>
+  name: string;
+  is_home: boolean;
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+  places: number; // on the map
+}
+
+export interface NewTrip {
+  name: string;
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+/** What POST /api/import reports back. */
+export interface ImportResult {
+  saved_as: string;
+  trip: string;
+  imported: number;
+  pinned: number;
+  approximate: number;
+  needs_review: number;
+  skipped: number;
+  merged: number;
+}
+
 /** A place added by hand (POST /api/places). */
 export interface CreatePlace {
+  trip_id?: number;
   name: string;
   lat: number;
   lng: number;
@@ -74,6 +108,7 @@ export const AUTH_REQUIRED_EVENT = "auth-required";
 
 export interface Place {
   id: number;
+  trip_id: number;
   name: string;
   lat: number;
   lng: number;
@@ -131,6 +166,7 @@ export interface ReviewReel {
   review_reason: string | null;
   place: PlaceBrief | null;
   extra_places: PlaceBrief[];
+  trip: { id: number; name: string; is_home: boolean }; // the trip it was imported into
 }
 
 export interface NewPlace {
@@ -172,14 +208,25 @@ export const api = {
   demoInfo: () => request<DemoInfo>("/api/demo"),
   /** passcode: the server has a single account, so the login screen asks only for its password. */
   authMode: () => request<{ passcode: boolean }>("/api/auth/mode"),
-  places: () => request<Place[]>("/api/places"),
+  /** Places on the map in one trip (default the Bay Area), or in every trip ("all"). */
+  places: (trip?: number | "all") => request<Place[]>(trip === undefined ? "/api/places" : `/api/places?trip=${trip}`),
   createPlace: (body: CreatePlace) => request<Place>("/api/places", { method: "POST", body: JSON.stringify(body) }),
   updateVisit: (placeId: number, update: VisitUpdate) =>
     request<Place>(`/api/places/${placeId}/visit`, {
       method: "POST",
       body: JSON.stringify(update),
     }),
-  stats: () => request<Stats>("/api/stats"),
+  /** Reels to sort out (every trip), and your visited / want-to-go counts in one trip. */
+  stats: (trip?: number) => request<Stats>(trip === undefined ? "/api/stats" : `/api/stats?trip=${trip}`),
+  trips: () => request<Trip[]>("/api/trips"),
+  createTrip: (body: NewTrip) => request<Trip>("/api/trips", { method: "POST", body: JSON.stringify(body) }),
+  renameTrip: (id: number, name: string) =>
+    request<Trip>(`/api/trips/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  /** Only an empty trip can be deleted (409 otherwise); never the Bay Area. */
+  deleteTrip: (id: number) => request<void>(`/api/trips/${id}`, { method: "DELETE" }),
+  /** Import a Muse export (its JSON text, as-is) into a trip. */
+  importExport: (tripSlug: string, json: string) =>
+    request<ImportResult>(`/api/import?trip=${encodeURIComponent(tripSlug)}`, { method: "POST", body: json }),
   version: () => request<{ version: number; build: string | null }>("/api/version"),
   recentImports: (limit = 1) => request<ImportRun[]>(`/api/imports?limit=${limit}`),
   tags: () => request<string[]>("/api/tags"),

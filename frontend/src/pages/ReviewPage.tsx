@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, type AttachBody, type Place, type ReviewReel } from "../api";
+import { api, type AttachBody, type Place, type ReviewReel, type Trip } from "../api";
 import PinPicker from "../components/PinPicker";
+import { tripCenter } from "../components/Trips";
 import { useOnDataChanged } from "../liveSync";
 
 // Short, plain names for the importer's flags (backend/app/importer/flags.py). The server's longer
@@ -12,6 +13,7 @@ const FLAG_LABELS: Record<string, string> = {
   no_street_address: "No street number",
   no_city: "No city",
   no_coords: "No location",
+  coords_outside_area: "Outside the trip's area",
   coords_outside_bay_area: "Outside the Bay Area",
   no_confidence: "Muse unsure",
   multi_spot: "Several spots",
@@ -29,6 +31,7 @@ function cleanVenue(venue: string | null): string {
 export default function ReviewPage({ onQueueChange }: { onQueueChange: () => void }) {
   const [queue, setQueue] = useState<ReviewReel[] | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [flagNames, setFlagNames] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<string>("");
   const [openId, setOpenId] = useState<number | null>(null);
@@ -37,10 +40,12 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
 
   const reload = useCallback(async (quiet = false) => {
     try {
-      const [q, p, f] = await Promise.all([api.reviewQueue(), api.places(), api.flags()]);
+      // Places in every trip: "a place already on the map" offers the ones in the reel's own trip.
+      const [q, p, f, t] = await Promise.all([api.reviewQueue(), api.places("all"), api.flags(), api.trips()]);
       setQueue(q);
       setPlaces(p);
       setFlagNames(f);
+      setTrips(t);
     } catch (e) {
       if (!quiet) setError(String(e));
     }
@@ -113,7 +118,8 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
         <ReelCard
           key={reel.id}
           reel={reel}
-          places={places}
+          trip={trips.find((t) => t.id === reel.trip.id) ?? null}
+          places={places.filter((p) => p.trip_id === reel.trip.id)}
           flagNames={flagNames}
           open={openId === reel.id}
           onToggle={() => setOpenId(openId === reel.id ? null : reel.id)}
@@ -130,6 +136,7 @@ export default function ReviewPage({ onQueueChange }: { onQueueChange: () => voi
 
 interface CardProps {
   reel: ReviewReel;
+  trip: Trip | null;
   places: Place[];
   flagNames: Record<string, string>;
   open: boolean;
@@ -139,7 +146,7 @@ interface CardProps {
   onReject: () => Promise<void>;
 }
 
-function ReelCard({ reel, places, flagNames, open, onToggle, onAttach, onResolve, onReject }: CardProps) {
+function ReelCard({ reel, trip, places, flagNames, open, onToggle, onAttach, onResolve, onReject }: CardProps) {
   const venue = cleanVenue(reel.venue_raw);
   const searchQuery = [venue, reel.address_raw].filter(Boolean).join(", ");
   const hasPlace = reel.place !== null;
@@ -150,6 +157,7 @@ function ReelCard({ reel, places, flagNames, open, onToggle, onAttach, onResolve
         <div>
           <h3>{venue || "Unnamed spot"}</h3>
           <p className="reel-sub">
+            {!reel.trip.is_home && <span className="reel-trip">{reel.trip.name} · </span>}
             <a href={reel.post_url} target="_blank" rel="noreferrer">
               {reel.posted_by ? `@${reel.posted_by}` : "Open the reel"}
             </a>
@@ -185,6 +193,7 @@ function ReelCard({ reel, places, flagNames, open, onToggle, onAttach, onResolve
       {open && (
         <FixPanel
           reel={reel}
+          center={trip ? tripCenter(trip) : [37.65, -122.2]}
           places={places}
           defaultName={venue}
           searchUrl={searchQuery ? googleMapsSearch(searchQuery) : null}
@@ -199,6 +208,7 @@ function ReelCard({ reel, places, flagNames, open, onToggle, onAttach, onResolve
 
 interface FixProps {
   reel: ReviewReel;
+  center: [number, number];
   places: Place[];
   defaultName: string;
   searchUrl: string | null;
@@ -207,7 +217,7 @@ interface FixProps {
   onReject: () => Promise<void>;
 }
 
-function FixPanel({ reel, places, defaultName, searchUrl, onAttach, onResolve, onReject }: FixProps) {
+function FixPanel({ reel, center, places, defaultName, searchUrl, onAttach, onResolve, onReject }: FixProps) {
   const [tab, setTab] = useState<"new" | "existing">("new");
   // Multi-spot reels already have their main place: default to adding another spot.
   const [mode, setMode] = useState<"replace" | "add">(reel.place ? "add" : "replace");
@@ -265,6 +275,7 @@ function FixPanel({ reel, places, defaultName, searchUrl, onAttach, onResolve, o
       {tab === "new" ? (
         <NewPlaceForm
           reel={reel}
+          center={center}
           defaultName={mode === "add" ? "" : defaultName}
           busy={busy}
           onSave={(new_place) => run(() => onAttach({ new_place, mode }))()}
@@ -301,11 +312,13 @@ function FixPanel({ reel, places, defaultName, searchUrl, onAttach, onResolve, o
 
 function NewPlaceForm({
   reel,
+  center,
   defaultName,
   busy,
   onSave,
 }: {
   reel: ReviewReel;
+  center: [number, number];
   defaultName: string;
   busy: boolean;
   onSave: (p: { name: string; lat: number; lng: number; address: string | null; is_approximate: boolean }) => void;
@@ -338,6 +351,7 @@ function NewPlaceForm({
       </label>
       <div className="pin-hint muted">Tap the map to drop the pin.</div>
       <PinPicker
+        center={center}
         pin={hasPin ? [latN, lngN] : null}
         onPick={(la, ln) => {
           setLat(la.toFixed(6));

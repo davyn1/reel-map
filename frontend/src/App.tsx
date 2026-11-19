@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, AUTH_REQUIRED_EVENT, type DemoInfo, type ImportRun, type Me, type Stats } from "./api";
+import { api, AUTH_REQUIRED_EVENT, type DemoInfo, type ImportRun, type Me, type Stats, type Trip } from "./api";
 import { ChevronLeftIcon } from "./components/Icons";
 import AddPlacePage from "./pages/AddPlacePage";
 import LoginPage from "./pages/LoginPage";
@@ -39,6 +39,25 @@ function focusFromHash(): number | null {
 }
 
 const TITLES: Record<Exclude<Route, "map">, string> = { review: "Sort out reels", add: "Add a place" };
+
+// Which map this device was last on. A per-device convenience: if it's unreadable or gone, the
+// Bay Area it is.
+const TRIP_KEY = "yums-trip";
+function savedTripId(): number | null {
+  try {
+    const v = Number(localStorage.getItem(TRIP_KEY));
+    return Number.isInteger(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+function saveTripId(id: number) {
+  try {
+    localStorage.setItem(TRIP_KEY, String(id));
+  } catch {
+    // private mode or blocked storage: the choice just isn't remembered
+  }
+}
 
 /** "Nov 18, 9:02 PM · 3 new" or the failure, for the account menu. */
 function importLine(run: ImportRun): string {
@@ -126,6 +145,9 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [lastImport, setLastImport] = useState<ImportRun | null>(null);
   const [demo, setDemo] = useState<DemoInfo | null>(null);
+  const [trips, setTrips] = useState<Trip[] | null>(null);
+  const [tripId, setTripId] = useState<number | null>(savedTripId);
+  const trip = trips ? (trips.find((t) => t.id === tripId) ?? trips.find((t) => t.is_home) ?? trips[0]) : null;
 
   useEffect(() => {
     api.me().then(setMe).catch(() => setMe(null));
@@ -146,17 +168,31 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const refreshStats = useCallback(() => {
-    api.stats().then(setStats).catch(() => setStats(null));
-    api.recentImports(1).then((runs) => setLastImport(runs[0] ?? null)).catch(() => undefined);
+  const refreshTrips = useCallback(() => {
+    api.trips().then(setTrips).catch(() => undefined);
   }, []);
+  const refreshStats = useCallback(() => {
+    api.stats(trip?.id).then(setStats).catch(() => setStats(null));
+    api.recentImports(1).then((runs) => setLastImport(runs[0] ?? null)).catch(() => undefined);
+  }, [trip?.id]);
   useEffect(() => {
-    if (me) refreshStats();
-  }, [me, refreshStats]);
+    if (me) refreshTrips();
+  }, [me, refreshTrips]);
+  useEffect(() => {
+    if (me && trip) refreshStats();
+  }, [me, trip, refreshStats]);
+
+  function switchTrip(next: Trip) {
+    setTripId(next.id);
+    saveTripId(next.id);
+    window.location.hash = "#/";
+  }
   // Live sync: one poller for the whole app; the counts and import status refresh when shared data changed.
   useVersionPoller(!!me);
   useOnDataChanged(() => {
-    if (me) refreshStats();
+    if (!me) return;
+    refreshStats();
+    refreshTrips(); // place counts, and trips made or renamed on the other phone
   });
 
   async function logout() {
@@ -165,7 +201,7 @@ export default function App() {
     setStats(null);
   }
 
-  if (me === undefined) return <div className="app" />;
+  if (me === undefined || (me && !trip)) return <div className="app" />;
   if (me === null) {
     return (
       <div className="app">
@@ -174,6 +210,7 @@ export default function App() {
     );
   }
 
+  if (!trip || !trips) return <div className="app" />; // (narrows the types; covered above)
   const account = <AccountMenu me={me} stats={stats} lastImport={lastImport} demo={demo} onLogout={logout} />;
 
   if (route === "map") {
@@ -181,7 +218,11 @@ export default function App() {
       <>
         <UpdateNote />
         <MapPage
-        key={me.username}
+        key={`${me.username}-${trip.id}`}
+        trip={trip}
+        trips={trips}
+        onSwitchTrip={switchTrip}
+        onTripsChanged={refreshTrips}
         stats={stats}
         onChanged={refreshStats}
         focusId={focusId}
@@ -209,6 +250,7 @@ export default function App() {
       {route === "review" && <ReviewPage onQueueChange={refreshStats} />}
       {route === "add" && (
         <AddPlacePage
+          trip={trip}
           onAdded={(id) => {
             refreshStats();
             window.location.hash = `#/place/${id}`;

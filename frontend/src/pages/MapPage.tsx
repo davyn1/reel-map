@@ -3,17 +3,17 @@ import { AttributionControl, MapContainer, Marker, useMap, useMapEvents } from "
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import type { LatLngBoundsExpression, Marker as LeafletMarker, MarkerClusterGroup as LeafletClusterGroup } from "leaflet";
-import { api, type Place, type Stats, type VisitUpdate } from "../api";
+import { api, type Place, type Stats, type Trip, type VisitUpdate } from "../api";
 import { MinimalBasemap } from "../basemap";
 import BottomSheet, { snapHeights, type Snap } from "../components/BottomSheet";
-import { CheckIcon, ChevronLeftIcon, DiceIcon, DirectionsIcon, FilterIcon, PlusIcon, SearchIcon, StarIcon } from "../components/Icons";
+import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, DiceIcon, DirectionsIcon, FilterIcon, PlusIcon, SearchIcon, StarIcon } from "../components/Icons";
+import { ImportForm, NewTripForm, TripsList, tripBounds, tripCenter } from "../components/Trips";
 import { TagEditor } from "../components/TagEditor";
 import { BeenButton, FavoriteButton, FriendLines, Rating, VisitDetails } from "../components/VisitLog";
 import { dishLine } from "../captions";
 import { clusterIcon, pinClasses, pinIcon, placeIcon, spreadOverlaps, type Pin } from "../mapUtils";
 import { useOnDataChanged } from "../liveSync";
 
-const BAY_AREA_CENTER: [number, number] = [37.65, -122.2];
 // Zoomed in this far, every pin shows on its own.
 const NO_CLUSTER_ZOOM = 14;
 // The food-type row floats this tall over the map's top edge.
@@ -22,7 +22,7 @@ const CHIP_ROW = 52;
 type Status = "all" | "todo" | "visited" | "favorites" | "both";
 type Accuracy = "any" | "exact" | "approx";
 type SortKey = "number" | "rating" | "recent" | "favorites";
-type Mode = "list" | "place" | "filters";
+type Mode = "list" | "place" | "filters" | "trips" | "new-trip" | "import";
 
 const SORTS: [SortKey, string][] = [
   ["number", "Order saved"],
@@ -96,7 +96,21 @@ function mergePlaces(prev: Place[] | null, fresh: Place[]): Place[] {
 // tab, a collapsed pane), every pin projects to one point. Re-measure on resize, and only fit
 // the view once the container has a real size. Refits whenever `fitKey` changes (filters),
 // keeping pins out from under the top bar and the sheet.
-function FitToPins({ pins, fitKey, top, bottom }: { pins: Pin[]; fitKey: string; top: number; bottom: number }) {
+function FitToPins({
+  pins,
+  fitKey,
+  top,
+  bottom,
+  area,
+  ready,
+}: {
+  pins: Pin[];
+  fitKey: string;
+  top: number;
+  bottom: number;
+  area: LatLngBoundsExpression; // the trip's area: what an empty trip shows
+  ready: boolean; // places have loaded (so "no pins" means an empty trip, not "still loading")
+}) {
   const map = useMap();
   const [fitted, setFitted] = useState<string | null>(null);
   const [size, setSize] = useState(0);
@@ -111,14 +125,11 @@ function FitToPins({ pins, fitKey, top, bottom }: { pins: Pin[]; fitKey: string;
   }, [map]);
 
   useEffect(() => {
-    if (fitted === fitKey || pins.length === 0 || size === 0) return;
-    map.fitBounds(pins.map((p) => p.position) as LatLngBoundsExpression, {
-      paddingTopLeft: [32, top + 16],
-      paddingBottomRight: [32, bottom + 16],
-      maxZoom: 14,
-    });
+    if (fitted === fitKey || !ready || size === 0) return;
+    const bounds = pins.length ? (pins.map((p) => p.position) as LatLngBoundsExpression) : area;
+    map.fitBounds(bounds, { paddingTopLeft: [32, top + 16], paddingBottomRight: [32, bottom + 16], maxZoom: 14 });
     setFitted(fitKey);
-  }, [map, pins, fitted, fitKey, size, top, bottom]);
+  }, [map, pins, fitted, fitKey, size, top, bottom, area, ready]);
   return null;
 }
 
@@ -281,7 +292,15 @@ export default function MapPage({
   onFocused,
   account,
   demo,
+  trip,
+  trips,
+  onSwitchTrip,
+  onTripsChanged,
 }: {
+  trip: Trip; // the map being shown: the Bay Area or a trip
+  trips: Trip[];
+  onSwitchTrip: (trip: Trip) => void;
+  onTripsChanged: () => void; // a trip was made, renamed, deleted or imported into
   stats: Stats | null;
   onChanged: () => void;
   focusId?: number | null; // fly to this place once the map has loaded
@@ -313,9 +332,17 @@ export default function MapPage({
   const lastPick = useRef<number | null>(null);
   const cluster = useRef<LeafletClusterGroup>(null);
   const header = useRef<HTMLElement>(null);
+  const [importInto, setImportInto] = useState<Trip>(trip); // the trip the import view imports into
 
   useEffect(() => {
-    api.places().then(setPlaces).catch((e) => setError(String(e)));
+    api
+      .places(trip.id)
+      .then((loaded) => {
+        setPlaces(loaded);
+        // A new, empty trip: raise the sheet so its "Import a Muse file / Add a place" shows.
+        if (loaded.length === 0) setSnap("half");
+      })
+      .catch((e) => setError(String(e)));
     api.tags().then(setAllTags).catch(() => setAllTags([]));
   }, []);
 
@@ -336,7 +363,7 @@ export default function MapPage({
   function refresh() {
     const before = edits.current;
     api
-      .places()
+      .places(trip.id)
       .then((fresh) => {
         if (edits.current !== before) {
           // A change made here landed meanwhile, so this list may be older than what's shown. Try
@@ -532,7 +559,11 @@ Later Muse imports won't add it back. Its log and tags are kept, and you can und
     focus(place.id, { fallback });
   }
 
-  const countLabel = places === null ? "Loading…" : narrowed ? `${shown.length} of ${places.length} places` : `${places.length} places`;
+  const countLabel = places === null ? "" : narrowed ? `${shown.length} of ${places.length}` : `${places.length} places`;
+  const openTrips = () => {
+    setMode("trips");
+    setSnap(snap === "full" ? "full" : "half");
+  };
 
   let sheetHeader: React.ReactNode;
   let sheetBody: React.ReactNode;
@@ -556,6 +587,69 @@ Later Muse imports won't add it back. Its log and tags are kept, and you can und
         onUpdate={(u) => update(selected.id, u)}
         onTags={(t) => setTags(selected.id, t)}
         onRemove={() => remove(selected)}
+      />
+    );
+  } else if (mode === "trips") {
+    sheetHeader = (
+      <div className="sheet-bar">
+        <h2 className="sheet-title">Trips</h2>
+        <span className="sheet-bar-actions">
+          <button type="button" className="link-btn" onClick={() => setMode("new-trip")}>
+            <PlusIcon size={16} /> New trip
+          </button>
+          <button type="button" className="link-btn" onClick={() => setMode("list")}>
+            Done
+          </button>
+        </span>
+      </div>
+    );
+    sheetBody = (
+      <TripsList
+        trips={trips}
+        currentId={trip.id}
+        onSwitch={(t) => (t.id === trip.id ? setMode("list") : onSwitchTrip(t))}
+        onImport={(t) => {
+          setImportInto(t);
+          setMode("import");
+        }}
+        onChanged={onTripsChanged}
+      />
+    );
+  } else if (mode === "new-trip") {
+    sheetHeader = (
+      <div className="sheet-bar">
+        <button type="button" className="back-btn" onClick={() => setMode("trips")}>
+          <ChevronLeftIcon size={20} />
+          Trips
+        </button>
+        <h2 className="sheet-title">New trip</h2>
+      </div>
+    );
+    sheetBody = (
+      <NewTripForm
+        onCreated={(t) => {
+          onTripsChanged();
+          onSwitchTrip(t);
+        }}
+      />
+    );
+  } else if (mode === "import") {
+    sheetHeader = (
+      <div className="sheet-bar">
+        <button type="button" className="back-btn" onClick={() => setMode(importInto.id === trip.id ? "list" : "trips")}>
+          <ChevronLeftIcon size={20} />
+          {importInto.id === trip.id ? "Places" : "Trips"}
+        </button>
+        <h2 className="sheet-title">Import</h2>
+      </div>
+    );
+    sheetBody = (
+      <ImportForm
+        trip={importInto}
+        onImported={() => {
+          onTripsChanged();
+          if (importInto.id === trip.id) refresh();
+        }}
       />
     );
   } else if (mode === "filters") {
@@ -633,7 +727,11 @@ Later Muse imports won't add it back. Its log and tags are kept, and you can und
     sheetHeader = (
       <div className="sheet-bar">
         <div className="sheet-count">
-          <h2 className="sheet-title">{countLabel}</h2>
+          <button type="button" className="trip-switch" onClick={openTrips} aria-label={`${trip.name}: switch trips`}>
+            <h2 className="sheet-title">{trip.name}</h2>
+            <ChevronDownIcon size={18} />
+          </button>
+          <span className="sheet-sub">{countLabel}</span>
           {narrowed && (
             <button type="button" className="link-btn" onClick={clearFilters}>
               Clear filters
@@ -649,7 +747,28 @@ Later Muse imports won't add it back. Its log and tags are kept, and you can und
     sheetBody = (
       <>
         {demo && <p className="demo-note">Demo with made-up places. Changes reset later.</p>}
-        {places && shown.length === 0 && (
+        {places && places.length === 0 && (
+          <div className="empty">
+            <p>Nothing in {trip.name} yet. Import the Muse file for its collection, or add places by hand.</p>
+            <div className="empty-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setImportInto(trip);
+                  setMode("import");
+                  setSnap("half");
+                }}
+              >
+                Import a Muse file
+              </button>
+              <a className="btn" href="#/add">
+                Add a place
+              </a>
+            </div>
+          </div>
+        )}
+        {places && places.length > 0 && shown.length === 0 && (
           <div className="empty">
             <p>No places match.</p>
             <button type="button" onClick={clearFilters}>
@@ -758,11 +877,20 @@ Later Muse imports won't add it back. Its log and tags are kept, and you can und
 
       <div className="map-fill">
         {/* maxZoom is required by the cluster plugin; the vector basemap doesn't set one like tile layers do */}
-        <MapContainer center={BAY_AREA_CENTER} zoom={10} minZoom={7} maxZoom={18} zoomControl={false} attributionControl={false}>
+        <MapContainer center={tripCenter(trip)} zoom={10} minZoom={3} maxZoom={18} zoomControl={false} attributionControl={false}>
           {/* Bottom left, riding just above the sheet; the add button owns the bottom right. */}
           <AttributionControl position="bottomleft" />
           <MinimalBasemap />
-          <FitToPins pins={pins} fitKey={`${city}|${tag}|${status}|${accuracy}`} top={topBar + CHIP_ROW} bottom={sheetHeight} />
+          <FitToPins
+            pins={pins}
+            // Refit when the filters change, and when the trip goes from empty to having places (an
+            // import). While it's empty the view is the trip's area, refit as the sheet moves.
+            fitKey={`${city}|${tag}|${status}|${accuracy}|${pins.length ? "pins" : `empty-${Math.round(sheetHeight)}`}`}
+            top={topBar + CHIP_ROW}
+            bottom={sheetHeight}
+            area={tripBounds(trip)}
+            ready={places !== null}
+          />
           <FlyToSelected target={flyTarget} markers={markers} cluster={cluster} />
           <MapTap
             onTap={() => {
@@ -877,7 +1005,7 @@ Later Muse imports won't add it back. Its log and tags are kept, and you can und
         topSpace={topBar}
         onHeight={setSheetHeight}
         header={sheetHeader}
-        label={mode === "place" && selected ? selected.name : mode === "filters" ? "Filters" : "Places"}
+        label={mode === "place" && selected ? selected.name : mode === "list" ? `${trip.name}: places` : mode}
         view={mode === "place" ? `place-${selectedId}` : mode}
       >
         {sheetBody}

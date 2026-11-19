@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { api, ApiError } from "../api";
+import { api, ApiError, type Trip } from "../api";
 import PinPicker from "../components/PinPicker";
+import { tripCenter } from "../components/Trips";
 
 interface Duplicate {
   message: string;
@@ -9,7 +10,7 @@ interface Duplicate {
 }
 
 /** Add a place by hand: name, optional link/address, pin (tap the map, use my location, or type), extras. */
-export default function AddPlacePage({ onAdded }: { onAdded: (placeId: number) => void }) {
+export default function AddPlacePage({ trip, onAdded }: { trip: Trip; onAdded: (placeId: number) => void }) {
   const [name, setName] = useState("");
   const [link, setLink] = useState("");
   const [address, setAddress] = useState("");
@@ -41,6 +42,7 @@ export default function AddPlacePage({ onAdded }: { onAdded: (placeId: number) =
     setDuplicate(null);
     try {
       const place = await api.createPlace({
+        trip_id: trip.id,
         name: name.trim(),
         lat: latN,
         lng: lngN,
@@ -82,9 +84,10 @@ export default function AddPlacePage({ onAdded }: { onAdded: (placeId: number) =
         </label>
 
         <div className="field">
-          <span className="field-label">Where is it?</span>
+          <span className="field-label">Where is it?{trip.is_home ? "" : ` (in ${trip.name})`}</span>
           <span className="muted small">Tap the map to drop the pin, or use your location.</span>
           <PinPicker
+            center={tripCenter(trip)}
             pin={hasPin ? [latN, lngN] : null}
             onPick={(la, ln) => {
               setLat(la.toFixed(6));

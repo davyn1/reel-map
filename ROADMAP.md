@@ -30,7 +30,7 @@
 
 ## Someday
 
-- [ ] Trip maps beyond the Bay Area: named maps ("Bay Area", "Tokyo 2027") with a switcher, each built automatically around the restaurants saved in that area (or saved from the current map view), with per-map visits, favorites and Pick for me. Needs the Bay Area assumptions removed first: the `coords_outside_bay_area` flag, the review page's Bay Area check on new pins, the starting view and the title. Food tags may need per-region tuning (in Tokyo most places would just be "Japanese"). Pairs with Near me for "within 2 km of the hotel".
+- [ ] Trip extras: start and end dates (past trips below upcoming ones), a hotel pin with the list sorted by distance from it (pairs with Near me), plan by day (Day 1, Day 2… with a per-day list), per-region food tags (in Tokyo nearly everything is "Japanese")
 
 ## Done
 
@@ -49,5 +49,6 @@
 - [x] Real map hosted on Fly.io, with one shared account and a passcode-only login
 - [x] Remove from map: take a place off the map (e.g. after unsaving its reel), with Undo; later imports don't bring it back and its log is kept
 - [x] Calmer, map-first design: the map fills the screen, the list and each place live in a bottom sheet, filters in one sheet, the review queue and import status in the account menu, color only for status, one drawn icon set
+- [x] Trips: a map per trip beyond the Bay Area, made by typing a city, filled from the Muse file of that trip's Instagram collection (imported in the app, or uploaded by Muse to the trip's own address), with a switcher; the Bay Area is the home trip
 - [x] Live sync: an open map picks up the other phone's changes and Muse's uploads within about 10 seconds (and right away when you come back to the app), keeping filters, the map view, an open popup and a half-typed note
 - [x] CI/CD: every push runs the backend tests, the frontend typecheck and a Docker build; passing pushes to main deploy the demo, and the real map deploys with one click

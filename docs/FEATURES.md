@@ -20,6 +20,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 | Import Muse exports from the command line, with per-reel flags and a summary | `backend/app/importer/run.py`, `parse.py`, `flags.py`, `check.py` |
 | Duplicate handling: reel URLs normalized to one form; places merge only on the same street address and a name score ≥ 80 | `backend/app/importer/parse.py`, `backend/app/importer/matching.py` |
 | Upload endpoint for Muse (`POST /api/import`), with a history of import runs | `backend/app/routers/imports.py` |
+| Trips: maps beyond the Bay Area (Bay Area = home), each with its own area and places; a switcher in the sheet; new trip by city search (OpenStreetMap); per-trip import of a Muse file (picked or pasted) or Muse uploads to `/api/import?trip=<slug>`; rename, delete when empty | `backend/app/trips.py`, `backend/app/routers/trips.py`, `backend/app/importer/run.py`, `frontend/src/components/Trips.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/MapPage.tsx` |
 | Full-screen map with clustered pins, food-type icons, and fanned-out pins that share coordinates | `frontend/src/pages/MapPage.tsx`, `frontend/src/mapUtils.ts`, `frontend/src/basemap.tsx` |
 | Bottom sheet holding the list, each place's view and the filters (peek / half / full; drag, flick or tap) | `frontend/src/components/BottomSheet.tsx`, `frontend/src/pages/MapPage.tsx` |
 | Search, food-type chips, a filter sheet (status, pin accuracy, city, sort), "Pick for me" | `frontend/src/pages/MapPage.tsx` |
@@ -40,7 +41,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 ## Testing
 
-- **126 backend tests** (pytest), 123 test functions in 12 files under `backend/tests/`. Locally all 126 pass. In CI 124 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
+- **136 backend tests** (pytest), 133 test functions in 13 files under `backend/tests/`. Locally all 136 pass. In CI 134 pass and 2 skip: the two skipped tests read a real Muse export, which isn't in the repo.
 - **What they cover:**
   - export parsing and reel flags
   - import rules and merging
@@ -53,6 +54,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
   - backup and restore
   - demo reset
   - alerts (with a fake sender)
+  - trips: the home trip and moving old data into it, creating / renaming / deleting, area checks on imports, hand-added places and review fixes, places merging only within a trip, per-trip stats, backup and restore of trips
   - the live-sync change counter: which changes move it (including uploads and command-line imports) and which don't (reads, logins, no-op updates, failed requests, rollbacks)
 - **Frontend:** `npm run typecheck` (`tsc`). There are no frontend unit tests; UI changes are checked with scripted headless-Chrome runs against a throwaway demo server (not part of CI).
 - **Isolation:** tests use temporary paths for the backup file and uploads (`backend/tests/conftest.py`), and CI points the database and data folders at a throwaway directory.
@@ -131,7 +133,7 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 
 | What | Value | Source |
 |---|---|---|
-| Backend tests | 126 (124 pass + 2 skip in CI) | `pytest`, `.github/workflows/ci.yml` |
+| Backend tests | 136 (134 pass + 2 skip in CI) | `pytest`, `.github/workflows/ci.yml` |
 | Upload size limit | 5 MB | `backend/app/routers/imports.py` |
 | Session length | 60 days | `backend/app/auth.py` |
 | Lockout | 5 failures → 15 minutes | `backend/app/auth.py` |
@@ -143,10 +145,11 @@ A map of Bay Area restaurants built from saved Instagram food reels. Meta's Muse
 | Alert HTTP timeout | 10 s | `backend/app/alerts.py` |
 | Fly health check | every 30 s, 5 s timeout | `fly.toml`, `fly.demo.toml` |
 | Live sync poll interval (while the app is on screen) | 10 s | `frontend/src/liveSync.ts` |
+| Trip area: largest side / box made from a city search | 6° / centre ± 0.12–0.6° lat, 0.15–0.8° lng | `backend/app/trips.py`, `frontend/src/components/Trips.tsx` |
 | Cache: the page, manifest and icons / hashed `assets/` | `no-cache` / 1 year, `immutable` | `backend/app/main.py` |
 
 ## Status
 
 - **Deployed:** yes, on Fly.io. Demo: https://yums-map-demo.fly.dev. The real app is private, behind a login.
 - **Collaborators:** one maintainer (GitHub `davyn1`). The real app is used by two people.
-- **Last updated:** 2026-11-16
+- **Last updated:** 2026-11-19

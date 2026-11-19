@@ -47,6 +47,8 @@ python -m app.importer.run         # import every data/reels*.json
 
 Re-running the import only adds reels it hasn't seen (matched by post URL), so new exports can be dropped in next to old ones. If a file isn't valid JSON, the import stops, says which line and column, and writes nothing.
 
+Those go to the Bay Area map. A trip's exports go to its folder, `data/trips/<slug>/reels*.json` (the trip must exist; make it in the app), or one file at a time with `python -m app.importer.run export.json --trip <slug>`. In the app, a trip's Import view takes the file directly.
+
 To start over, delete `backend/food_map.db` and import again.
 
 ### Upload endpoint
@@ -60,7 +62,9 @@ curl -X POST https://<your-app>/api/import \
      --data-binary @reels.json
 ```
 
-`FOOD_MAP_IMPORT_TOKEN` is a long random secret set on the server; without it, token uploads are off. Each upload is saved in `data/` before it's imported, reels already on the map are skipped, and the map shows when the last import happened and what it added.
+`FOOD_MAP_IMPORT_TOKEN` is a long random secret set on the server; without it, token uploads are off. Each upload is saved in `data/` before it's imported, reels already on the map are skipped, and the account menu shows when the last import happened and what it added.
+
+That sends to the Bay Area. For a trip, add its slug: `https://<your-app>/api/import?trip=tokyo-2027`. The app shows each trip's upload address (trips view → "Muse upload address"), so a Muse task for a trip's Instagram collection can post there with the same token.
 
 ### Upload alerts (Discord)
 
@@ -121,8 +125,9 @@ cd /app/backend && python -m app.users add davy --name Davy
 What can't be rebuilt from a Muse export lives in `personal/my-log.json`: been-here, visit dates, ratings, notes, favorites, hand-picked tags and places added by hand. The app rewrites it after every change. Places are matched by reel URL, so it can be restored onto a fresh database:
 
 ```bash
-# backend/ : after importing the Muse exports on a new machine
-python -m app.backup restore
+# backend/ : after importing the Bay Area exports on a new machine
+python -m app.backup restore      # also brings back the trips
+python -m app.importer.run        # again, now that the trips exist: imports data/trips/<slug>/
 python -m app.backup export     # rewrite the log from the database by hand
 ```
 

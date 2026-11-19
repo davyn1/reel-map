@@ -16,6 +16,7 @@ A phone-first map of Bay Area restaurants saved from Instagram food reels, with 
 
 - **Map of saved places:** coral pins to try, teal pins visited, dashed pins approximate. Crowded areas cluster and split as you zoom.
 - **Search and filters** by spot, dish, poster, city or food type.
+- **Trips:** make a map for a trip (type a city), then import the Muse file for that trip's Instagram collection; switch between it and the Bay Area in one tap.
 - **Pick for me:** opens a random place you haven't tried, from whatever the filters show.
 - **Visit log:** mark places "been here" with stars, a date and a note, and favorite the ones you want to try.
 - **Two people, separate logs:** each person's ratings show on the other's place view, plus a "Both want to go" filter.
@@ -30,7 +31,7 @@ A phone-first map of Bay Area restaurants saved from Instagram food reels, with 
 - **Careful merging.** Duplicates are caught through normalized reel URLs. Places merge only on the same street address *and* a fuzzy name match, since food halls share an address.
 - **Auth done properly for a small app.** scrypt password hashes, HttpOnly session cookies, only hashes of session tokens stored, and a 15-minute lockout after 5 wrong passwords.
 - **No API keys anywhere.** The basemap is [OpenFreeMap](https://openfreemap.org) vector tiles drawn by MapLibre GL, restyled to a minimal dark palette.
-- **Tested and deployed.** 126 pytest tests cover the parser, flags, import rules, API, logins and demo. GitHub Actions runs them on every push, along with a frontend typecheck and a Docker image build, and deploys the demo when they all pass on main. UI flows were checked in headless Chrome. One Docker image runs on Fly.io; the demo is the same image with a throwaway database rebuilt from sample data every 24 hours.
+- **Tested and deployed.** 136 pytest tests cover the parser, flags, import rules, API, logins and demo. GitHub Actions runs them on every push, along with a frontend typecheck and a Docker image build, and deploys the demo when they all pass on main. UI flows were checked in headless Chrome. One Docker image runs on Fly.io; the demo is the same image with a throwaway database rebuilt from sample data every 24 hours.
 
 ## Stack
 

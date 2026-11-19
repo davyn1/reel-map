@@ -4,7 +4,7 @@ Personal Bay Area restaurant map built from saved Instagram food reels. A tracke
 
 Flow: Instagram saved reels → exported by Meta's Muse AI as JSON (`data/reels*.json`) → CLI import → SQLite → FastAPI → React + Leaflet map.
 
-Pins use Muse's own coordinates. There is no Google Places (or any external API) call; each popup has a plain "Open in Google Maps" link instead. If pins turn out to be wrong, a verification step (Google Places or OpenStreetMap Nominatim) can be added later.
+Pins use Muse's own coordinates. There is no Google Places call; each place has a plain Directions link (Google Maps) instead. The one outside lookup is the new-trip city search, which the app makes from the browser to OpenStreetMap's free Nominatim (no key). If pins turn out to be wrong, a verification step (Google Places or OpenStreetMap Nominatim) can be added later.
 
 After finishing a feature or changing tests, CI, or deployment, update docs/FEATURES.md to match.
 
@@ -29,10 +29,11 @@ backend/
     users.py         CLI: add / passwd / list / remove accounts (no sign-up page)
     alerts.py        Discord alerts when Muse's uploads fail or go quiet; CLI: test / check
     sync.py          live sync: bumps app_state.version on every change to shared data (SQLAlchemy flush hook)
-    demo/            public demo mode: sample_reels.json (made-up places) + reset()
+    trips.py         trips: the Bay Area home trip (made by init_db), slugs, area checks
+    demo/            public demo mode: sample_reels.json + sample_trip_tokyo.json (made-up places) + reset()
     tags.py          food type tags (keyword regexes over name, captions, Muse notes)
     schemas.py       Pydantic response/request models
-    routers/         auth.py (login/logout/me), imports.py (Muse upload, recent imports), places.py, reels.py (review queue), version.py (live sync)
+    routers/         auth.py (login/logout/me), imports.py (Muse upload, recent imports), places.py, reels.py (review queue), trips.py (trips), version.py (live sync)
     importer/
       parse.py       load export files; "" and null -> None
       flags.py       per-reel flags
@@ -52,6 +53,7 @@ frontend/
     components/PinPicker.tsx small street map: tap to place a pin, or "Use my location"
     components/BottomSheet.tsx the map's sheet: peek / half / full, drag or tap the handle
     components/Icons.tsx     the drawn icon set (no emoji or glyphs as icons)
+    components/Trips.tsx     trips list, new trip (city search), import a Muse file
     api.ts           fetch wrapper + types mirroring backend/app/schemas.py
     liveSync.ts      live sync: poll GET /api/version, fire a data-changed event the screens re-fetch on
     index.css        styles (CSS variables on :root)
@@ -81,6 +83,7 @@ python -m venv .venv && .venv/Scripts/activate   # Windows; use bin/activate els
 pip install -r requirements.txt
 python -m app.importer.run                 # imports every data/reels*.json
 python -m app.importer.run ../data/reels.json   # or one file
+python -m app.importer.run export.json --trip tokyo-2027   # one file into a trip
 python -m app.importer.check               # list reels by flag; no DB writes
 python -m app.importer.check --flag no_street_address
 python -m app.users add davy --name "Davy"   # make a login (asks for the password); first one takes over pre-login visits
@@ -123,8 +126,9 @@ To start over, delete `backend/food_map.db` and re-run the import.
 
 ## Data model
 
-- **places**: id, name, lat, lng, address, is_approximate (bool), tags_override (JSON list or null: hand-picked food tags; null = automatic), removed (bool: taken off the map by hand, see Removing a place)
-- **reels**: id, post_url (unique; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file (export file name, or `manual`), added_by (username, hand-added places only)
+- **trips** (`Trip`): id, slug (unique; Muse's upload address `?trip=<slug>`, made from the name, never changes), name, south, west, north, east (the area: a lat/lng box), is_home, created_at. The Bay Area is the home trip (slug `bay-area`, the old Bay Area box), made by `init_db` (`trips.ensure_home`), which also gives it every place and reel with no trip (everything from before trips).
+- **places**: id, trip_id, name, lat, lng, address, is_approximate (bool), tags_override (JSON list or null: hand-picked food tags; null = automatic), removed (bool: taken off the map by hand, see Removing a place)
+- **reels**: id, trip_id (the trip it was imported into), post_url (unique across all trips; the dedup key), posted_by, venue_raw, address_raw, city_raw, lat_raw, lng_raw, dish, muse_confidence, muse_note, place_id (nullable FK), status (`matched` / `needs_review` / `rejected`), flags (JSON list, see Reel flags), review_reason, source_file (export file name, or `manual`), added_by (username, hand-added places only)
 - **reel_extra_places**: reel_id, place_id. Extra spots for multi-spot reels; `reels.place_id` stays the reel's main place.
 - **visits**: id, place_id, user (= `users.username`), visited (bool), visited_date, rating (1–5), notes, favorite (bool). One row per (place_id, user). Notes and favorite don't require a visit. Before logins existed `user` was `"me"`; the first account created takes those rows over.
 - **users**: id, username (unique, lowercase), display_name, password_hash (`scrypt$n$r$p$salt$hash`), created_at. Made with `python -m app.users`; there is no sign-up page.
@@ -149,7 +153,7 @@ One place has many reels. The Google Maps link is computed (not stored) from nam
 
 ## Personal data
 
-`personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 2: `users.<username>.places[]` (been-here, visit date, rating, notes, favorite), a shared `tags[]` (hand-picked tags), a shared `removed[]` (places taken off the map, kept hidden on restore), and `manual_places[]` (places added by hand, which no Muse export can rebuild; restore recreates them first). Version-1 files (before logins, one person) still restore, into `--user` (default: the first account).
+`personal/my-log.json` is the backup of everything people add by hand, written by `backup.save_log_quietly` after every endpoint that changes it, and restored with `python -m app.backup restore`. Version 3: `trips[]` (every trip but the Bay Area: slug, name, box; restore recreates them first), `users.<username>.places[]` (been-here, visit date, rating, notes, favorite), a shared `tags[]` (hand-picked tags), a shared `removed[]` (places taken off the map, kept hidden on restore), and `manual_places[]` (places added by hand, which no Muse export can rebuild, with their trip's slug unless it's the Bay Area; restore recreates them first). Version-2 files (before trips) and version-1 files (before logins, one person; into `--user`, default the first account) still restore. Starting over: import the Bay Area exports, restore the log (which brings the trips back), then import again for the trips' exports in `data/trips/<slug>/`.
 - **Personal data goes under `personal/` (gitignored), nowhere else.** The repo is public: never commit real exports, the database, the log, real names or screenshots of the real map. README screenshots come from the demo.
 - Earlier commits contain only an empty `my-log.json`, so the history is clean.
 - Places are keyed by their reels' post URLs, never database IDs, so a restore works after a fresh import.
@@ -176,8 +180,10 @@ JSON array of objects with keys: venue, address, city, lat, lng, post_url, poste
 
 ## Import rules
 
+- Every import goes into one trip (`importer.run(paths, session, trip)`; default the Bay Area). Its area replaces the old fixed Bay Area box in the flags, places only merge with places in the same trip, and a reel already in any trip is skipped as known.
+
 - `post_url` is unique. Re-importing only adds new reels; existing post_urls are skipped (counted as skipped), never updated or duplicated.
-- Blocking flags (`no_venue`, `no_coords`, `coords_outside_bay_area`, `no_confidence`) or confidence `none` → reel `needs_review`, no place. `review_reason` says why.
+- Blocking flags (`no_venue`, `no_coords`, `coords_outside_area` (and the older `coords_outside_bay_area`), `no_confidence`) or confidence `none` → reel `needs_review`, no place. `review_reason` says why.
 - confidence `low`, or a `city_only_address` at any confidence → place with `is_approximate = true` at Muse's coordinates (typically pop-ups, home cooks, or places Muse could only pin to a city). Approximate places dedupe on normalized venue name + city (two reels of one pop-up share a place; two different pop-ups pinned to Oakland do not; one pop-up in two cities is two places).
 - confidence `high` / `medium` with a street address → place at Muse's coordinates, `is_approximate = false`.
 - Never dedupe places by name alone (names vary: "Stans Donuts" vs "Stan's Doughnut" at one address). Non-approximate places merge only on the same normalized street address **and** name score ≥ 80 (`matching.MIN_MERGE_NAME_SCORE`). Address alone never merges (food halls and malls share addresses).
@@ -196,7 +202,8 @@ Each reel gets a list of flags describing what is missing or questionable in its
 | `no_street_address` | address has no street number (landmark, intersection, ZIP only) | none; pin may be rough |
 | `no_city` | city empty/null | none |
 | `no_coords` | lat or lng empty/null/non-numeric | needs_review, no place |
-| `coords_outside_bay_area` | outside lat 36.8–38.9, lng −123.6 to −121.2 (also catches swapped lat/lng) | needs_review, no place |
+| `coords_outside_area` | outside the trip's area (the Bay Area: lat 36.8–38.9, lng −123.6 to −121.2); also catches swapped lat/lng | needs_review, no place |
+| `coords_outside_bay_area` | the same, on reels imported before trips existed (still understood, never added now) | needs_review, no place |
 | `no_confidence` | confidence empty or not high/medium/low/none | needs_review, no place |
 | `multi_spot` | note or venue says the reel covers several spots | place imported, reel needs_review |
 
@@ -222,12 +229,13 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 - `POST /api/auth/login` `{"username"?, "password"}` → sets the cookie, returns `{username, display_name}`; 401 wrong login, 429 locked out. No username = passcode login (single account only, else 422)
 - `GET /api/auth/mode` (public) → `{"passcode": bool}`: true when there's exactly one account and this isn't the demo
 - `POST /api/auth/logout` (204), `GET /api/auth/me` → `{username, display_name}` or 401
-- `POST /api/import` — Muse's upload: body is the export JSON. Auth: `Authorization: Bearer <FOOD_MAP_IMPORT_TOKEN>` (503 if no token is configured, 401 if wrong) or a logged-in session. Saves the body as `data/reels-upload-<UTC time>-<random>.json` first, then runs the normal import (known reels skipped). Returns `{saved_as, imported, pinned, approximate, needs_review, pinned_needing_review, skipped, merged, flags, skipped_details}`. 400 with line/column on bad JSON (file kept as `.invalid`), 413 over 5 MB, 409 if an import is already running.
+- `POST /api/import?trip=<slug>` — Muse's upload (no `trip`: the Bay Area; unknown slug: 404): body is the export JSON. Auth: `Authorization: Bearer <FOOD_MAP_IMPORT_TOKEN>` (503 if no token is configured, 401 if wrong) or a logged-in session. Saves the body as `data/reels-upload-<UTC time>-<random>.json` (a trip's under `data/trips/<slug>/`) first, then runs the normal import into that trip (known reels skipped). Returns `{saved_as, trip, imported, pinned, approximate, needs_review, pinned_needing_review, skipped, merged, flags, skipped_details}`. 400 with line/column on bad JSON (file kept as `.invalid`), 413 over 5 MB, 409 if an import is already running.
 - `GET /api/imports?limit=` — recent import runs, newest first (login required)
 
-- `POST /api/places` — add a place by hand: `{name, lat, lng, address?, link?, is_approximate?, tags?, favorite?, visited?, notes?, force?}` → the place (201). 422 outside the Bay Area / bad link (must be http(s)) / unknown tag. 409 `{message, place_id, kind}`: `same_link` (that link is already on the map) or, unless `force`, `similar_nearby` (name score ≥ 80 within 150 m).
-- `GET /api/places` — every place still on the map (in import order; removed ones left out) with `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
-- `GET /api/stats` — `needs_review`, and the logged-in person's own `visited`, `favorites` (what the map's chips show)
+- `GET /api/trips` — every trip (the Bay Area first, then newest first) with its place count. `POST /api/trips` `{name, south, west, north, east}` → 201 (422 for a bad box or one over 6° a side; 409 for a name that's taken). `PATCH /api/trips/{id}` `{name}` renames (the slug stays). `DELETE /api/trips/{id}` → 204 for an empty trip; 409 for one with places or reels, or the Bay Area
+- `POST /api/places` — add a place by hand: `{trip_id?, name, lat, lng, address?, link?, is_approximate?, tags?, favorite?, visited?, notes?, force?}` (no `trip_id`: the Bay Area) → the place (201). 422 outside that trip's area / bad link (must be http(s)) / unknown tag. 409 `{message, place_id, kind}`: `same_link` (that link is already on the map) or, unless `force`, `similar_nearby` (name score ≥ 80 within 150 m, in the same trip).
+- `GET /api/places?trip=<id>` — every place still on the map in one trip (default the Bay Area; `trip=all` for every trip) (in import order; removed ones left out) with `trip_id`, `others` (friend mode) and `city` (most common reel city, else parsed from address), `tags`, `visited`, `visited_date`, `rating`, `notes`, `favorite`, `google_maps_url` and its non-rejected reels (main + extra)
+- `GET /api/stats?trip=<id>` — `needs_review` (every trip), and the logged-in person's own `visited`, `favorites` in that trip (default the Bay Area)
 - `GET /api/version` → `{version, build}`: `version` goes up whenever shared data changes (see `app_state`); `build` is the served app's main script (`assets/index-<hash>.js`, read from the built `index.html`, re-read only when it changes; `null` when no built map is served). `Cache-Control: no-store`. Open apps poll it every 10 s, re-fetch only when `version` moved, and offer a reload when `build` differs from the script they're running
 - `POST /api/places/{id}/visit` — partial update of the visit log: any of `visited`, `visited_date`, `rating` (1–5), `notes`, `favorite`; only fields sent change, `null` clears rating/notes/date. `visited` takes the desired state rather than flipping, so a double click can't undo itself. Turning it on stamps today's date (unless one is sent); turning it off clears date and rating but keeps notes and favorite.
 - `PUT /api/places/{id}/removed` `{"removed": bool}` — take a place off the map or bring it back (404 unknown place); returns the place
@@ -238,7 +246,7 @@ Interactive docs at http://localhost:8000/docs while the server runs.
 - `POST /api/reels/{id}/place` `{"place_id": n}` or `{"new_place": {name, lat, lng, address?, is_approximate?}}`, plus `mode`:
   - `"replace"` (default): set the reel's main place, status `matched`
   - `"add"`: link an extra spot (multi-spot reels); reel stays in review
-  - new places must be inside the Bay Area box (catches swapped lat/lng)
+  - new places must be inside the reel's trip's area (catches swapped lat/lng); review reels carry `trip` `{id, name, is_home}`
 - `POST /api/reels/{id}/resolve` — keep the reel's place(s) and mark it `matched` (e.g. multi-spot reel with all spots added)
 - `POST /api/reels/{id}/reject` — status `rejected`, unlinks its places
 
@@ -250,6 +258,7 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
 - Look ("quiet and confident", redesigned with Impeccable after a critique found it cluttered and generic): near-black neutrals, and color only where it means something. CSS variables on `:root` in `index.css`: coral `--todo` = to try, teal `--visited` = been here, gold `--fav` = want to go (the star), amber `--warn` = needs a look, red `--danger` = errors; dashed outline = approximate. Actions and links are off-white (`button.primary` is off-white with dark text). Pills (`.chip`) are only for toggle chips; everything else has small corners (`--r-sm/md/lg`). Type scale `--fs-xs` … `--fs-lg`, no uppercase. Visible `:focus-visible` ring, themed selection and scrollbars.
 - Icons: one drawn set in `components/Icons.tsx` (24px grid, 1.75 stroke). Controls never use emoji or Unicode glyphs as icons; food emoji stay on pins and list rows because they're content (the kind of food).
 - Basemap (`basemap.tsx`): fetches OpenFreeMap's Positron style, recolors it with the dark `PALETTE`, and keeps only background, water, freeways (motorway incl. bridges/tunnels), trunk highways, US/interstate route shields, water names, and city/town labels. Everything else (buildings, minor roads, parks, rail, airports, boundaries, POIs) is dropped. To show more or less, edit the `KEEP` set; layer ids are from the Positron style. Falls back to OSM raster tiles if the style can't load.
+- Trips: `App` loads `GET /api/trips` and keeps the current trip's id in `localStorage` (`yums-trip`, per device; falls back to the Bay Area). The map, its stats and add-a-place follow the current trip; `MapPage` is keyed by the trip, so switching starts it fresh. The sheet's header is the switcher (the trip's name and a chevron, then the count); it opens the trips view (`components/Trips.tsx`): every trip with its count, the current one ticked; per trip "Import a Muse file", Rename, Delete (empty trips only) and its Muse upload address with Copy. "New trip": type a city (OpenStreetMap Nominatim search from the browser, up to 5 results), pick one, the name starts as the city's; the area is a box around the city's centre (half-sizes clamped to 0.12–0.6° lat, 0.15–0.8° lng), since official boundaries can be huge (Tokyo's includes far islands). Creating switches to the new trip, which opens with the sheet raised on "Nothing in … yet" with Import / Add a place. The import view takes a picked file or pasted JSON and posts it to `/api/import?trip=<slug>` as the logged-in person, then says what it added. The map opens on the trip's centre and fits its pins, or the trip's area while it's empty (refit as the sheet moves, and when an import fills it).
 - Routes (hash): `#/` map, `#/review`, `#/add`, `#/place/<id>` (map opens that place, then the hash resets to `#/`). The map route is full-screen (no `.app` wrapper); review and add have a top bar with a back button, the title and the account menu.
 - Account menu (`AccountMenu` in `App.tsx`, the avatar): "Logged in as …", "Sort out reels (N)" → `#/review` (only when there are any), the last import line from `GET /api/imports?limit=1` (red if it failed), the demo note and source link on the demo, and Log out. A dot on the avatar means something there wants attention (amber: reels to sort out; red: the last import failed). Closes on an outside tap or Esc.
 - Add a place (`#/add`, the round ＋ button over the map): name; pin by tapping the street map or "Use my location" (needs https or localhost); approximate checkbox; "Type coordinates" folded away; want to go (on by default), been here, notes; "Link, address and food type" folded away (food tags: none = automatic). A 409 shows the server's message with "Show it" and, for a similar place nearby, "Add anyway". Rows and the place view say "by <name>" instead of "@poster"; a hand-added place without a link shows no reel link.
@@ -271,7 +280,7 @@ A place left with no reels is deleted, unless you've logged it (visited, favorit
   - Live sync (`liveSync.ts`): `App` runs one `useVersionPoller`, which asks `GET /api/version` every 10 s (`POLL_MS`) while the app is on screen and right away when it comes back (`visibilitychange`, window `focus`, `pageshow`; one request at a time), and nothing while hidden. When the number moved it fires `DATA_CHANGED_EVENT`; `useOnDataChanged` subscribers re-fetch: the map its places, `App` the counts and the last import, the review page its queue. Your own changes move the number too, so they cost one extra re-fetch that changes nothing on screen. `mergePlaces` keeps the old object for every unchanged place (and the old list if nothing changed). A re-fetch that was in flight when a change was made here is not shown but retried a second later (`edits` counter), since its data may be older and the poller has already moved past that version. Failures are silent (offline: keep what's shown). Filters, the map view, the open place and a half-typed note stay as they are; a place that disappears closes its view.
   - New version note (`UpdateNote` in `App.tsx`): the poller also compares `build` with the page's own main script (`runningBuild()`); when they differ (a deploy while the page stayed open, or a home-screen app resumed from the background) it fires `NEW_BUILD_EVENT` once and a "New version · Reload" pill shows under the top bar, on every screen. Never under the Vite dev server (no hashed script).
   - Marker positions keep the same array while a place hasn't moved (`positions` in `MapPage`). react-leaflet compares `position` by reference, and the cluster plugin handles a "moved" marker by taking it out and putting it back. Without this, any change to the places list (a refresh, a been-here tick) did that to every marker.
-- Review page (`#/review`, "Sort out reels"): one entry per needs_review reel: the venue (or "Unnamed spot"), @poster reel link and Muse's address, plain-language flag badges (`FLAG_LABELS`: "No name", "No location", "Several spots"…; the server's description is the title), the review reason, the caption, and "More from Muse" (confidence and note) folded away; a Show filter by flag (with counts). "Fix" opens a panel:
+- Review page (`#/review`, "Sort out reels"): one entry per needs_review reel, from every trip (a trip's reels say its name first): the venue (or "Unnamed spot"), @poster reel link and Muse's address, plain-language flag badges (`FLAG_LABELS`: "No name", "No location", "Several spots"…; the server's description is the title), the review reason, the caption, and "More from Muse" (confidence and note) folded away; a Show filter by flag (with counts). "Fix" opens a panel:
   - New place: name, optional address, tap the mini map to drop the pin, approximate checkbox, "Type coordinates" folded away
   - A place already on the map: search places by name/address, "Use this"
   - Reels that already have a place (multi-spot) choose "Add another spot from this reel" (default) or "Replace", then "Done: keep …" resolves them

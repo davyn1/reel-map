@@ -1,0 +1,86 @@
+[
+  {
+    "venue": "Kanda Tsukemen Ichi",
+    "address": "2-14-3 Kanda Sudacho, Chiyoda City, Tokyo, Japan",
+    "city": "Tokyo",
+    "lat": 35.6955,
+    "lng": 139.7705,
+    "post_url": "https://www.instagram.com/reel/DEMOTKY01/",
+    "posted_by": "tokyo_slurps",
+    "dish": "Thick dipping noodles in a rich pork and fish broth, ask for the spicy oil",
+    "confidence": "high",
+    "note": "Japanese ramen / tsukemen"
+  },
+  {
+    "venue": "Sushi Hanabi Ginza",
+    "address": "5-8-11 Ginza, Chuo City, Tokyo, Japan",
+    "city": "Tokyo",
+    "lat": 35.6705,
+    "lng": 139.7638,
+    "post_url": "https://www.instagram.com/reel/DEMOTKY02/",
+    "posted_by": "omakase_diary",
+    "dish": "Lunch omakase with ten pieces and miso soup, book a week ahead",
+    "confidence": "high",
+    "note": "Japanese sushi"
+  },
+  {
+    "venue": "Ebisu Gyoza Lab",
+    "address": "1-7-2 Ebisu-Nishi, Shibuya City, Tokyo, Japan",
+    "city": "Tokyo",
+    "lat": 35.6475,
+    "lng": 139.7085,
+    "post_url": "https://www.instagram.com/reel/DEMOTKY03/",
+    "posted_by": "tokyo_slurps",
+    "dish": "Crispy-bottom gyoza with yuzu pepper, open until 2am",
+    "confidence": "high",
+    "note": "Japanese / Chinese dumplings"
+  },
+  {
+    "venue": "Yanaka Taiyaki Stand",
+    "address": "3-10-8 Yanaka, Taito City, Tokyo, Japan",
+    "city": "Tokyo",
+    "lat": 35.7265,
+    "lng": 139.7668,
+    "post_url": "https://www.instagram.com/reel/DEMOTKY04/",
+    "posted_by": "sweet_tooth_jp",
+    "dish": "Fish-shaped cakes filled with red bean or custard, hot off the iron",
+    "confidence": "medium",
+    "note": "Japanese sweets"
+  },
+  {
+    "venue": "Tsukiji Tamago Corner",
+    "address": "4-13-9 Tsukiji, Chuo City, Tokyo, Japan",
+    "city": "Tokyo",
+    "lat": 35.6655,
+    "lng": 139.7705,
+    "post_url": "https://www.instagram.com/reel/DEMOTKY05/",
+    "posted_by": "omakase_diary",
+    "dish": "Sweet rolled omelette on a stick and grilled scallops at the outer market",
+    "confidence": "high",
+    "note": "Japanese, seafood"
+  },
+  {
+    "venue": "Shimokita Curry Night Market",
+    "address": "Shimokitazawa, Setagaya City, Tokyo, Japan",
+    "city": "Tokyo",
+    "lat": 35.6613,
+    "lng": 139.6683,
+    "post_url": "https://www.instagram.com/reel/DEMOTKY06/",
+    "posted_by": "tokyo_slurps",
+    "dish": "Pop-up curry stalls every Friday night, the spinach keema sells out first",
+    "confidence": "low",
+    "note": "Japanese curry pop-up"
+  },
+  {
+    "venue": "Gyukatsu Kyoto (Osaka branch)",
+    "address": "Namba, Osaka, Japan",
+    "city": "Osaka",
+    "lat": 34.6658,
+    "lng": 135.5013,
+    "post_url": "https://www.instagram.com/reel/DEMOTKY07/",
+    "posted_by": "sweet_tooth_jp",
+    "dish": "Rare beef cutlet you finish on a little stone grill",
+    "confidence": "high",
+    "note": "Japanese; this one is in Osaka"
+  }
+]

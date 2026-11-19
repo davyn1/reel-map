@@ -2,7 +2,9 @@
 
 Runs as its own server with its own throwaway database, never the real one. On start, and again
 every RESET_HOURS, the database is wiped and refilled with made-up places (sample_reels.json, in
-Muse's export format, imported by the normal importer) and two accounts:
+Muse's export format, imported by the normal importer), a sample trip to Tokyo
+(sample_trip_tokyo.json; one reel is in Osaka, so the review page shows a pin outside a trip's
+area) and two accounts:
 
 - DEMO_USERNAME / DEMO_PASSWORD: shown on the login screen ("Try the demo"); anyone can use it.
 - "sam": the friend, with a log of their own, so friend mode has something to show.
@@ -12,7 +14,7 @@ Uploads are off, and the demo accounts are never locked out by wrong passwords.
 
 import asyncio
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import select
@@ -20,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.db import Base, engine, init_db
 from app.importer.run import record_run, run
-from app.models import Place, Visit
+from app.models import Place, Trip, Visit
 from app.users import add_user
 
 DEMO = os.getenv("FOOD_MAP_DEMO", "").lower() in ("1", "true", "yes")
@@ -30,6 +32,9 @@ FRIEND_USERNAME = "sam"
 SOURCE_URL = "https://github.com/davyn1/reel-map"
 RESET_HOURS = 24
 SAMPLE = Path(__file__).with_name("sample_reels.json")
+SAMPLE_TRIP = Path(__file__).with_name("sample_trip_tokyo.json")
+# Central Tokyo and around, about what the app makes from a city search for "Tokyo".
+TOKYO = {"slug": "tokyo", "name": "Tokyo", "south": 35.1, "west": 139.0, "north": 36.3, "east": 140.5}
 
 # (place name, user, visit fields): days_ago stands in for a visit date, so the dates stay recent.
 _VISITS = [
@@ -45,6 +50,9 @@ _VISITS = [
     ("Slice Theory", FRIEND_USERNAME, {"visited": True, "days_ago": 8, "rating": 4, "notes": "Hot honey pepperoni"}),
     ("Seoul Spoon", FRIEND_USERNAME, {"visited": True, "days_ago": 40, "rating": 4}),
     ("Mochi Moon Bakery", FRIEND_USERNAME, {"favorite": True}),
+    ("Sushi Hanabi Ginza", DEMO_USERNAME, {"favorite": True}),
+    ("Ebisu Gyoza Lab", DEMO_USERNAME, {"favorite": True, "notes": "Late-night stop after Shibuya"}),
+    ("Sushi Hanabi Ginza", FRIEND_USERNAME, {"favorite": True}),
 ]
 
 
@@ -54,6 +62,10 @@ def reset(bind=engine) -> None:
     init_db(bind)
     with Session(bind, expire_on_commit=False) as session:
         record_run(session, "cli", SAMPLE.name, run([SAMPLE], session))
+        tokyo = Trip(**TOKYO, is_home=False, created_at=datetime.now(timezone.utc).replace(tzinfo=None))
+        session.add(tokyo)
+        session.flush()
+        record_run(session, "cli", f"{SAMPLE_TRIP.name} (Tokyo)", run([SAMPLE_TRIP], session, tokyo))
         add_user(session, DEMO_USERNAME, "Demo", DEMO_PASSWORD)
         # Nobody logs in as the friend; a random password keeps it that way.
         add_user(session, FRIEND_USERNAME, "Sam", os.urandom(24).hex())

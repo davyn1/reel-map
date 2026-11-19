@@ -45,7 +45,8 @@ def test_sample_data_covers_every_feature(demo_db):
         places = s.scalars(select(Place)).all()
         assert len(places) >= 25
         assert any(p.is_approximate for p in places)
-        assert s.scalar(select(func.count()).where(Reel.status == "needs_review")) == 3
+        # 3 Bay Area reels to sort out, plus the Tokyo trip's one Osaka pin (outside that trip's area).
+        assert s.scalar(select(func.count()).where(Reel.status == "needs_review")) == 4
         assert {u.username for u in s.scalars(select(User))} == {demo.DEMO_USERNAME, demo.FRIEND_USERNAME}
         assert s.scalar(select(func.count(Visit.id))) == len(demo._VISITS)
 
@@ -55,6 +56,12 @@ def test_sample_data_covers_every_feature(demo_db):
     assert any(p["visited"] and p["rating"] for p in places)
     tags = {t for p in places for t in p["tags"]}
     assert {"Korean", "Mexican", "Japanese", "Seafood"} <= tags
+
+    # The sample trip: its own map, with places and a want-to-go or two.
+    tokyo = next(t for t in c.get("/api/trips").json() if t["slug"] == "tokyo")
+    in_tokyo = c.get(f"/api/places?trip={tokyo['id']}").json()
+    assert len(in_tokyo) == 6 and tokyo["places"] == 6
+    assert any(p["favorite"] for p in in_tokyo) and not any(p["name"].startswith("Gyukatsu") for p in in_tokyo)
 
 
 def test_reset_undoes_visitors_changes(demo_db):
